@@ -25,3 +25,19 @@
 - 决策：M0-01 验收证据 = 本机 Windows 配置/构建日志 + 产物存在性检查 + Standalone 启动冒烟；宿主加载截图由人类补入；macOS/Linux 构建日志由 M0-06 CI 补全。
 - 理由：本机仅 Windows（MSVC BuildTools），无 macOS/Linux 环境。
 - 影响：M0-01 的"三平台"证据分两阶段收齐，M0-06 收口时核对。
+
+## ADR-004：本机工具链为便携版 CMake + VS 18 2026 BuildTools
+
+- 日期：2026-09-20
+- 状态：已批准（人类，M0-01 会话）
+- 决策：PATH 上的 MSYS2 CMake 不含 VS 生成器且本机无原生 CMake；下载便携版 CMake 4.4.3 至 `D:\Program\CMake`（不写系统 PATH）。本机实际安装的是 VS 18 2026 BuildTools（18.10.1，MSVC 14.51），生成器使用 `Visual Studio 18 2026`（文档基线的 MSVC 2022 在 CI/发布保留，见架构 9.1）。
+- 理由：不引入旧版 VS 大型安装；便携 CMake 免管理员；VS 18 生成器与 CMake 4.4.3 兼容。
+- 影响：构建命令与 AGENTS.md 第 5 条按本机环境更新；CI（M0-06）仍按三平台标准工具链配置。
+
+## ADR-005：Windows SDK 缺失，由人类安装（M0-01 构建阻塞项）
+
+- 日期：2026-09-20
+- 状态：待人类完成安装
+- 决策：本机注册表登记 SDK 10.0.26100 但文件缺失（`Windows Kits\10` 下无 Include/Lib），链接器报 `LNK1181: 无法打开 kernel32.lib`；由人类安装 Windows SDK 10.0.26100 后继续 M0-01 构建。
+- 理由：SDK 为系统级组件，安装需 UAC；AI 不擅自安装。
+- 影响：M0-01 构建证据在 SDK 安装完成后补录；若安装版本不同，需同步核对注册表与 vcvars 解析。
