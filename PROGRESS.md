@@ -7,7 +7,7 @@
 
 | 任务 ID | 状态 | 会话记录 | 证据 | 审查 | 遗留问题 |
 | --- | --- | --- | --- | --- | --- |
-| M0-01 CMake + JUCE 工程 | In Review | 2026-09-20 会话 1 | [evidence](REVIEWS/M0-01/evidence.md) | R2 | 宿主加载截图待人类补；三平台日志待 M0-06 |
+| M0-01 CMake + JUCE 工程 | Done | 2026-09-20 会话 1 | [evidence](REVIEWS/M0-01/evidence.md) | R2 | 三平台日志待 M0-06（ADR-003） |
 | M0-02 目录与模块骨架 | Backlog | — | — | R1 | — |
 | M0-03 APVTS 参数框架 | Backlog | — | — | R1 | — |
 | M0-04 引擎空壳 + BusBuffers + 测试音 | Backlog | — | — | R2 | — |
@@ -26,3 +26,4 @@
 - 终审（AI 交叉审查）：0 Critical / 2 Important / 6 Minor；Important 已修复（ADR-005 状态、ADR-006）；证据补强（原始日志 + 退出码 + smoke.log + 全量重建哈希）；`// RT-safe` 注释按项目规范补齐
 - 遗留（Minor，待人类裁决）：`JUCE_WEB_BROWSER=0`/`JUCE_USE_CURL=0`/LTO、CMakePresets、`CMAKE_CXX_EXTENSIONS OFF`、头文件加入 `target_sources`、宿主加载拷贝路径文档 → 随 M0-06/M0-02 处理
 - 状态：In Review（待人类 R2 审查；宿主加载截图待人类补入）
+- 收口（2026-09-20）：人类合并至 main（`43535c0`）并补入宿主加载截图（`REVIEWS/M0-01/2026-09-20 004115.png`）→ Done
