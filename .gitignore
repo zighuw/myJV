@@ -1,0 +1,9 @@
+# Build outputs
+build/
+.vs/
+CMakeUserPresets.json
+*.user
+
+# Editor backups
+*~
+*.un~
