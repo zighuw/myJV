@@ -23,6 +23,8 @@ add_library(myJV_core STATIC
 
 target_include_directories(myJV_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 
+set_target_properties(myJV_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_compile_features(myJV_core PRIVATE cxx_std_20)
 
 target_link_libraries(myJV_core
