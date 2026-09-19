@@ -14,6 +14,7 @@ bool MyJVProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
+// RT-safe
 void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
