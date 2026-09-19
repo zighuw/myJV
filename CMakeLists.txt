@@ -14,6 +14,22 @@ FetchContent_Declare(JUCE
 
 FetchContent_MakeAvailable(JUCE)
 
+add_library(myJV_core STATIC
+    Source/Params/Params.cpp
+    Source/Model/Model.cpp
+    Source/Engine/Engine.cpp
+    Source/DSP/DSP.cpp
+    Source/IO/IO.cpp)
+
+target_include_directories(myJV_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
+target_compile_features(myJV_core PRIVATE cxx_std_20)
+
+target_link_libraries(myJV_core
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
 juce_add_plugin(myJV
     COMPANY_NAME "myJV"
     BUNDLE_ID "com.myjv.synth"
@@ -38,6 +54,7 @@ target_compile_definitions(myJV
 
 target_link_libraries(myJV
     PRIVATE
+        myJV_core
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
