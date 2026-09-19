@@ -1,26 +1,13 @@
-﻿CMake is re-running because D:/Workspace/myJV/build/CMakeFiles/generate.stamp is out-of-date.
-  the file 'D:/Workspace/myJV/CMakeLists.txt'
-  is newer than 'D:/Workspace/myJV/build/CMakeFiles/generate.stamp.depend'
-  result='-1'
--- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.22631.
--- Configuring juceaide
--- Building juceaide
--- Exporting juceaide
--- Testing juceaide
--- Finished setting up juceaide
--- Configuring done (2.5s)
--- Generating done (0.1s)
--- Build files have been written to: D:/Workspace/myJV/build
+﻿閫傜敤浜?.NET Framework MSBuild 鐗堟湰 18.10.1-1.26427.6+3cd27c13e
+
 閫傜敤浜?.NET Framework MSBuild 鐗堟湰 18.10.1-1.26427.6+3cd27c13e
 
   Checking File Globs
   1>Checking Build System
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\ZERO_CHECK.vcxproj]
+  Generating myJV_artefacts/JuceLibraryCode/myJV_resources.rc
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\myJV_rc_lib.vcxproj]
   myJV_rc_lib.vcxproj -> D:\Workspace\myJV\build\myJV_rc_lib.dir\Release\myJV_rc_lib.lib
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\myJV.vcxproj]
   MyJVProcessor.cpp
   juce_audio_processors.cpp
   juce_audio_processors_ara.cpp
@@ -94,11 +81,11 @@ D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-o
 D:\Workspace\myJV\build\_deps\juce-src\modules\juce_core\text\juce_CharacterFunctions.cpp(1,1): warning C4819: 璇ユ枃浠跺寘鍚笉鑳藉湪褰撳墠浠ｇ爜椤?936)涓〃绀虹殑瀛楃銆傝灏嗚鏂囦欢淇濆瓨涓?Unicode 鏍煎紡浠ラ槻姝㈡暟鎹涪澶?[D:\Workspace\myJV\build\myJV.vcxproj]
   (缂栬瘧婧愭枃浠垛€淿deps/juce-src/modules/juce_core/juce_core.cpp鈥?
   
-D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-style.h(1,1): warning C4819: 璇ユ枃浠跺寘鍚笉鑳藉湪褰撳墠浠ｇ爜椤?936)涓〃绀虹殑瀛楃銆傝灏嗚鏂囦欢淇濆瓨涓?Unicode 鏍煎紡浠ラ槻姝㈡暟鎹涪澶?[D:\Workspace\myJV\build\myJV.vcxproj]
-  (缂栬瘧婧愭枃浠垛€淿deps/juce-src/modules/juce_graphics/juce_graphics.cpp鈥?
-  
 D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-common.cc(1,1): warning C4819: 璇ユ枃浠跺寘鍚笉鑳藉湪褰撳墠浠ｇ爜椤?936)涓〃绀虹殑瀛楃銆傝灏嗚鏂囦欢淇濆瓨涓?Unicode 鏍煎紡浠ラ槻姝㈡暟鎹涪澶?[D:\Workspace\myJV\build\myJV.vcxproj]
   (缂栬瘧婧愭枃浠垛€淿deps/juce-src/modules/juce_graphics/juce_graphics_Harfbuzz.cpp鈥?
+  
+D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-style.h(1,1): warning C4819: 璇ユ枃浠跺寘鍚笉鑳藉湪褰撳墠浠ｇ爜椤?936)涓〃绀虹殑瀛楃銆傝灏嗚鏂囦欢淇濆瓨涓?Unicode 鏍煎紡浠ラ槻姝㈡暟鎹涪澶?[D:\Workspace\myJV\build\myJV.vcxproj]
+  (缂栬瘧婧愭枃浠垛€淿deps/juce-src/modules/juce_graphics/juce_graphics.cpp鈥?
   
 D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-ot-var-fvar-table.hh(1,1): warning C4819: 璇ユ枃浠跺寘鍚笉鑳藉湪褰撳墠浠ｇ爜椤?936)涓〃绀虹殑瀛楃銆傝灏嗚鏂囦欢淇濆瓨涓?Unicode 鏍煎紡浠ラ槻姝㈡暟鎹涪澶?[D:\Workspace\myJV\build\myJV.vcxproj]
   (缂栬瘧婧愭枃浠垛€淿deps/juce-src/modules/juce_graphics/juce_graphics_Harfbuzz.cpp鈥?
@@ -139,11 +126,9 @@ D:\Workspace\myJV\build\_deps\juce-src\modules\juce_graphics\fonts\harfbuzz\hb-o
   juce_graphics_Sheenbidi.c
   myJV.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\myJV_SharedCode.lib
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\myJV_vst3_helper.vcxproj]
   juce_VST3ManifestHelper.cpp
   myJV_vst3_helper.vcxproj -> D:\Workspace\myJV\build\Release\myJV_vst3_helper.exe
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\myJV_VST3.vcxproj]
   juce_audio_plugin_client_AAX.cpp
   juce_audio_plugin_client_AAX_utils.cpp
   juce_audio_plugin_client_ARA.cpp
@@ -157,7 +142,6 @@ CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ig
   removing moduleinfo.json
   creating D:/Workspace/myJV/build/myJV_artefacts/Release/VST3/myJV.vst3
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\myJV_Standalone.vcxproj]
   juce_audio_plugin_client_AAX.cpp
   juce_audio_plugin_client_AAX_utils.cpp
   juce_audio_plugin_client_ARA.cpp
@@ -168,4 +152,4 @@ CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ig
   juce_audio_plugin_client_VST3.cpp
   myJV_Standalone.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\Standalone\myJV.exe
   Building Custom Rule D:/Workspace/myJV/CMakeLists.txt
-CUSTOMBUILD : warning : Environment variable CMAKE_GENERATOR_PLATFORM will be ignored, because CMAKE_GENERATOR is not set. [D:\Workspace\myJV\build\ALL_BUILD.vcxproj]
+BUILD_EXIT=0

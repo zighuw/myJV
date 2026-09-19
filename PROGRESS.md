@@ -20,7 +20,9 @@
 ### 2026-09-20 会话 1（M0-01）
 
 - 范围：CMake + JUCE 工程（VST3/AU/Standalone）
-- 决策：ADR-001（JUCE 8.0.9 + FetchContent）、ADR-002（本地仓库、CI 延后）、ADR-003（Windows 本地证据口径）、ADR-004（便携 CMake + VS 18 2026 生成器）、ADR-005（SDK 缺失待安装）
+- 决策：ADR-001（JUCE 8.0.9 + FetchContent）、ADR-002（本地仓库、CI 延后）、ADR-003（Windows 本地证据口径）、ADR-004（便携 CMake + VS 18 2026 生成器）、ADR-005（SDK 安装，已完成）、ADR-006（`JUCE_VST3_CAN_REPLACE_VST2=0`）
 - 环境发现：PATH 上 cmake 为 MSYS2 版无 VS 生成器；本机为 VS 18 2026 BuildTools；Windows SDK 文件缺失（LNK1181）
-- 结果：配置 + Release 构建通过（0 error、本工程 0 warning）；VST3/Standalone 产物生成；Standalone 冒烟存活 5s；证据包已归档
+- 结果：配置 + 清空全量 Release 构建通过（0 error、本工程 0 warning）；VST3/Standalone 产物生成；Standalone 冒烟存活 5s；证据包已归档
+- 终审（AI 交叉审查）：0 Critical / 2 Important / 6 Minor；Important 已修复（ADR-005 状态、ADR-006）；证据补强（原始日志 + 退出码 + smoke.log + 全量重建哈希）；`// RT-safe` 注释按项目规范补齐
+- 遗留（Minor，待人类裁决）：`JUCE_WEB_BROWSER=0`/`JUCE_USE_CURL=0`/LTO、CMakePresets、`CMAKE_CXX_EXTENSIONS OFF`、头文件加入 `target_sources`、宿主加载拷贝路径文档 → 随 M0-06/M0-02 处理
 - 状态：In Review（待人类 R2 审查；宿主加载截图待人类补入）

@@ -7,7 +7,7 @@
 - 日期：2026-09-20
 - 状态：已批准（人类，M0-01 会话）
 - 决策：CMake FetchContent 固定 tag `8.0.9`（浅克隆）；不使用 submodule；不使用 JUCE 7.x。
-- 理由：本机无本地 JUCE；CMake 4.3.3 与 JUCE 8 兼容性最好；tag 固定保证可复现构建。
+- 理由：本机无本地 JUCE；CMake 4.x（本机 4.4.3）与 JUCE 8 兼容性最好；tag 固定保证可复现构建。
 - 影响：首次配置需联网下载（数百 MB）；CI 缓存策略在 M0-06 决定。
 
 ## ADR-002：M0 阶段使用本地 git 仓库，暂无远程与 CI
@@ -37,7 +37,15 @@
 ## ADR-005：Windows SDK 缺失，由人类安装（M0-01 构建阻塞项）
 
 - 日期：2026-09-20
-- 状态：待人类完成安装
+- 状态：已完成（人类已安装 10.0.26100；M0-01 配置/构建通过，证据见 `REVIEWS/M0-01/evidence.md`）
 - 决策：本机注册表登记 SDK 10.0.26100 但文件缺失（`Windows Kits\10` 下无 Include/Lib），链接器报 `LNK1181: 无法打开 kernel32.lib`；由人类安装 Windows SDK 10.0.26100 后继续 M0-01 构建。
 - 理由：SDK 为系统级组件，安装需 UAC；AI 不擅自安装。
-- 影响：M0-01 构建证据在 SDK 安装完成后补录；若安装版本不同，需同步核对注册表与 vcvars 解析。
+- 影响：阻塞已解除；若后续更换 SDK 版本，需同步核对注册表与 vcvars 解析。
+
+## ADR-006：VST3 不启用 VST2 替代兼容（`JUCE_VST3_CAN_REPLACE_VST2=0`）
+
+- 日期：2026-09-20
+- 状态：已批准（M0-01 终审后记录）
+- 决策：`CMakeLists.txt` 定义 `JUCE_VST3_CAN_REPLACE_VST2=0`（与 JUCE 官方 CMake 示例一致）；本项目从未发布 VST2 版本。
+- 理由：避免 VST2/VST3 参数自动化 ID 冲突的编译期保护（C1189）；该宏同时决定 VST3 类 ID 与 VST2 兼容行为。
+- 影响：**发布后不得更改**（更改会破坏宿主工程中的插件识别与自动化数据）；若未来需要 VST2 迁移，必须实现 `VST3ClientExtensions::getCompatibleParameterIds()` 并另开 ADR。
