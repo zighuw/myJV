@@ -3,7 +3,7 @@
 - 日期：2026-09-20
 - 分支：`feature/M0-02-module-skeleton`
 - 审查级别：R2（受保护区域：`CMakeLists.txt`、`Calibration.h`、`AssetReclaimer.h`、`ToneVoice.h`、`VoiceManager.h`、`PatchSerializer.h`；人类裁决）
-- 状态：待人类审查
+- 状态：已完成（人类已合并至 main `7f5c7de` 并补入宿主加载截图 `REVIEWS/M0-02/2026-09-20 133140.png`）
 
 ## 1. 环境
 
@@ -131,7 +131,7 @@
 - [x] 参数核对表：不适用（无自动化参数）
 - [x] 变异抽查：不适用（无行为可测；本任务为目录/编译骨架，TDD 明示例外，已随设计批准）
 - [ ] macOS/Linux 构建日志（M0-06 CI）
-- [ ] 宿主加载截图：沿用 M0-01（插件功能未变，二进制已重生成）
+- [x] 宿主加载截图（人类已补：`REVIEWS/M0-02/2026-09-20 133140.png`，VST3i 加载正常）
 
 ## 6. 日志清单（本目录）
 
