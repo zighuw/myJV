@@ -1,8 +1,21 @@
-﻿Randomness seeded to: 1537322545
+﻿Randomness seeded to: 3772876979
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 myJV_tests.exe is a Catch2 v3.16.0 host application.
 Run with -? for options
+
+-------------------------------------------------------------------------------
+every parameter round-trips host automation values
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\param_tests.cpp(208)
+...............................................................................
+
+D:\Workspace\myJV\Tests\param_tests.cpp(223): FAILED:
+  REQUIRE( parameter->getValue() == Catch::Approx (expected).margin (1.0e-4f) )
+with expansion:
+  1.0f == Approx( 0.0 )
+with message:
+  parameter: patch.common.level target: 0
 
 -------------------------------------------------------------------------------
 key parameter defaults match the specification
@@ -16,6 +29,6 @@ with expansion:
   63.0f == Approx( 64.0 )
 
 ===============================================================================
-test cases:    9 |    8 passed | 1 failed
-assertions: 9428 | 9427 passed | 1 failed
+test cases:    9 |    7 passed | 2 failed
+assertions: 7875 | 7873 passed | 2 failed
 

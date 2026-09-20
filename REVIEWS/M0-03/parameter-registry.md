@@ -49,6 +49,8 @@
 | `tone1.wg.fineTune` | tone1.wg.fineTune | Int | -50 - 50 | 0 |
 | `tone1.wg.randomPitch` | tone1.wg.randomPitch | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone1.wg.pitchKeyfollow` | tone1.wg.pitchKeyfollow | Float | -100.0 - 100.0 | 100.0000000 |
+| `tone1.wg.pitchLfo1Depth` | tone1.wg.pitchLfo1Depth | Float | 0.0 - 127.0 | 0.0000000 |
+| `tone1.wg.pitchLfo2Depth` | tone1.wg.pitchLfo2Depth | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone1.tvf.type` | tone1.tvf.type | Choice | 5 options | LPF |
 | `tone1.tvf.cutoff` | tone1.tvf.cutoff | Float | 0.0 - 127.0 | 127.0000000 |
 | `tone1.tvf.cutoffKeyfollow` | tone1.tvf.cutoffKeyfollow | Float | -100.0 - 100.0 | 0.0000000 |
@@ -170,6 +172,8 @@
 | `tone2.wg.fineTune` | tone2.wg.fineTune | Int | -50 - 50 | 0 |
 | `tone2.wg.randomPitch` | tone2.wg.randomPitch | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone2.wg.pitchKeyfollow` | tone2.wg.pitchKeyfollow | Float | -100.0 - 100.0 | 100.0000000 |
+| `tone2.wg.pitchLfo1Depth` | tone2.wg.pitchLfo1Depth | Float | 0.0 - 127.0 | 0.0000000 |
+| `tone2.wg.pitchLfo2Depth` | tone2.wg.pitchLfo2Depth | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone2.tvf.type` | tone2.tvf.type | Choice | 5 options | LPF |
 | `tone2.tvf.cutoff` | tone2.tvf.cutoff | Float | 0.0 - 127.0 | 127.0000000 |
 | `tone2.tvf.cutoffKeyfollow` | tone2.tvf.cutoffKeyfollow | Float | -100.0 - 100.0 | 0.0000000 |
@@ -291,6 +295,8 @@
 | `tone3.wg.fineTune` | tone3.wg.fineTune | Int | -50 - 50 | 0 |
 | `tone3.wg.randomPitch` | tone3.wg.randomPitch | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone3.wg.pitchKeyfollow` | tone3.wg.pitchKeyfollow | Float | -100.0 - 100.0 | 100.0000000 |
+| `tone3.wg.pitchLfo1Depth` | tone3.wg.pitchLfo1Depth | Float | 0.0 - 127.0 | 0.0000000 |
+| `tone3.wg.pitchLfo2Depth` | tone3.wg.pitchLfo2Depth | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone3.tvf.type` | tone3.tvf.type | Choice | 5 options | LPF |
 | `tone3.tvf.cutoff` | tone3.tvf.cutoff | Float | 0.0 - 127.0 | 127.0000000 |
 | `tone3.tvf.cutoffKeyfollow` | tone3.tvf.cutoffKeyfollow | Float | -100.0 - 100.0 | 0.0000000 |
@@ -412,6 +418,8 @@
 | `tone4.wg.fineTune` | tone4.wg.fineTune | Int | -50 - 50 | 0 |
 | `tone4.wg.randomPitch` | tone4.wg.randomPitch | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone4.wg.pitchKeyfollow` | tone4.wg.pitchKeyfollow | Float | -100.0 - 100.0 | 100.0000000 |
+| `tone4.wg.pitchLfo1Depth` | tone4.wg.pitchLfo1Depth | Float | 0.0 - 127.0 | 0.0000000 |
+| `tone4.wg.pitchLfo2Depth` | tone4.wg.pitchLfo2Depth | Float | 0.0 - 127.0 | 0.0000000 |
 | `tone4.tvf.type` | tone4.tvf.type | Choice | 5 options | LPF |
 | `tone4.tvf.cutoff` | tone4.tvf.cutoff | Float | 0.0 - 127.0 | 127.0000000 |
 | `tone4.tvf.cutoffKeyfollow` | tone4.tvf.cutoffKeyfollow | Float | -100.0 - 100.0 | 0.0000000 |

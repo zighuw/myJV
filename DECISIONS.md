@@ -66,3 +66,13 @@
 - 决策：移除 `myJV_core` 静态库与 5 个模块编译锚；定义 `set(MYJV_CORE_SOURCES ...)`，由插件目标与 `myJV_tests` 目标各自编译（连同各自链接的 JUCE 模块，符合 JUCE 原生模型）。
 - 理由：简单、无重复静态库、无需再导出 include/defines；JUCE 模块本就按消费目标编译。
 - 影响：插件与测试各自编译核心源与 JUCE 模块（本机约 2×5 分钟构建）；后续核心源文件加入 `MYJV_CORE_SOURCES` 即可被两目标共享。
+- 备注：移除 5 个编译锚后，`Source/Engine|Model|DSP|IO` 的骨架头文件暂不被任何目标编译（骨架完整性由 M0-02 证据归档）；各任务加入真实源文件时纳入 `MYJV_CORE_SOURCES`。
+
+## ADR-009：依赖记录——Catch2 v3.16.0（单元测试）
+
+- 日期：2026-09-20
+- 状态：已批准（架构 2.2 已列依赖 + M0-03 设计批准）
+- 用途：C++ 单元测试框架（参数注册表、自动化往返等）
+- 许可证：BSL-1.0
+- 体积：源码 tarball 约 1.2 MB（FetchContent URL + SHA256 固定；git 协议不可达时的替代获取方式）
+- 替代方案：JUCE UnitTest（无成熟断言宏/报告生态）
