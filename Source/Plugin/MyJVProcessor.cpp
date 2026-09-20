@@ -19,40 +19,15 @@ void MyJVProcessor::releaseResources()
 
 bool MyJVProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
-
-    for (int bus = 1; bus < layouts.outputBuses.size(); ++bus)
-    {
-        const auto& channelSet = layouts.outputBuses.getReference (bus);
-
-        if (! channelSet.isDisabled() && channelSet != juce::AudioChannelSet::stereo())
-            return false;
-    }
-
-    return true;
+    return isLayoutSupported (layouts);
 }
 
 // RT-safe
-void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
 
-    BusBuffers buses;
-
-    for (int bus = 0; bus < juce::jmin (3, getBusCount (false)); ++bus)
-    {
-        auto* outputBus = getBus (false, bus);
-
-        if (outputBus == nullptr || ! outputBus->isEnabled() || outputBus->getNumberOfChannels() < 2)
-            continue;
-
-        auto busBuffer = getBusBuffer (buffer, false, bus);
-        buses.l[bus] = busBuffer.getWritePointer (0);
-        buses.r[bus] = busBuffer.getWritePointer (1);
-    }
-
-    engine.process (buses, buffer.getNumSamples());
+    engine.process (buildBusBuffers (*this, buffer), buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* MyJVProcessor::createEditor()

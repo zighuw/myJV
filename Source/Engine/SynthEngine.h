@@ -1,11 +1,11 @@
 #pragma once
 
-#include <juce_audio_processors/juce_audio_processors.h>
+inline constexpr int kNumOutputBuses = 3;
 
 struct BusBuffers
 {
-    float* l[3] {};
-    float* r[3] {};
+    float* l[kNumOutputBuses] {};
+    float* r[kNumOutputBuses] {};
 };
 
 class SynthEngine
@@ -20,8 +20,6 @@ public:
     void process (const BusBuffers& buses, int numSamples) noexcept;
 
 private:
-    static constexpr int kNumBuses = 3;
-
     double sampleRate = 48000.0;
-    double phases[kNumBuses] {};
+    double phases[kNumOutputBuses] {};
 };

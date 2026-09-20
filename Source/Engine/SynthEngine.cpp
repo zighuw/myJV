@@ -1,5 +1,7 @@
 #include "SynthEngine.h"
 
+#include <juce_core/juce_core.h>
+
 #include <cmath>
 
 namespace
@@ -21,7 +23,7 @@ void SynthEngine::releaseResources() noexcept {}
 // RT-safe
 void SynthEngine::process (const BusBuffers& buses, int numSamples) noexcept
 {
-    for (int bus = 0; bus < kNumBuses; ++bus)
+    for (int bus = 0; bus < kNumOutputBuses; ++bus)
     {
         if (buses.l[bus] == nullptr || buses.r[bus] == nullptr)
             continue;
@@ -38,7 +40,7 @@ void SynthEngine::process (const BusBuffers& buses, int numSamples) noexcept
 
             phase += phaseDelta;
 
-            if (phase >= juce::MathConstants<double>::twoPi)
+            while (phase >= juce::MathConstants<double>::twoPi)
                 phase -= juce::MathConstants<double>::twoPi;
         }
 
