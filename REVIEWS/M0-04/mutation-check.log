@@ -1,23 +1,34 @@
-﻿Randomness seeded to: 2653167993
+﻿Randomness seeded to: 880140299
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 myJV_tests.exe is a Catch2 v3.16.0 host application.
 Run with -? for options
 
 -------------------------------------------------------------------------------
-engine renders the test tone on each bus
+test tone frequency is sample-rate independent
 -------------------------------------------------------------------------------
-D:\Workspace\myJV\Tests\engine_tests.cpp(87)
+D:\Workspace\myJV\Tests\engine_tests.cpp(232)
 ...............................................................................
 
-D:\Workspace\myJV\Tests\engine_tests.cpp(99): FAILED:
-  REQUIRE( measureFrequency (fixture.buffers[bus]) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0) )
+D:\Workspace\myJV\Tests\engine_tests.cpp(243): FAILED:
+  REQUIRE( measureFrequency (fixture.buffers[bus], kAlternateSampleRate) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0) )
+with expansion:
+  700.08749999999997726 == Approx( 660.0 )
+
+-------------------------------------------------------------------------------
+engine renders the test tone on each bus
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\engine_tests.cpp(212)
+...............................................................................
+
+D:\Workspace\myJV\Tests\engine_tests.cpp(224): FAILED:
+  REQUIRE( measureFrequency (fixture.buffers[bus], kSampleRate) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0) )
 with expansion:
   700.0 == Approx( 660.0 )
 with message:
   bus 1
 
 ===============================================================================
-test cases:    13 |    12 passed | 1 failed
-assertions: 57453 | 57452 passed | 1 failed
+test cases:    19 |    17 passed | 2 failed
+assertions: 58514 | 58512 passed | 2 failed
 

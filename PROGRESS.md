@@ -54,4 +54,6 @@
 - 决策：ADR-010（临时测试音，M1-04 移除）
 - 结果：3 路立体声输出（Main/Out1/Out2）；测试音 440/660/880 Hz @ -20 dBFS；13 用例 / 57458 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；WAV ×3 归档；冒烟通过
 - 变异抽查：Out1 660→700 Hz → 测试变红（已恢复）
+- 终审（AI 交叉审查）：0 Critical / 2 Important / 10 Minor；Important 已修复（提取可测的 `isLayoutSupported`/`buildBusBuffers` 并新增处理器级映射/布局测试 ×4；修正电平口径为峰值 -20 dBFS / RMS ≈ -23 dBFS）；Minor 修复（`noexcept`、`while` 回绕、44.1 kHz、逐采样 L/R、头文件解耦、`kNumOutputBuses`、边界用例）；变异抽查 ×2
+- 最终验证：19 用例 / 60566 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning
 - 状态：In Review（R2，待人类审查）
