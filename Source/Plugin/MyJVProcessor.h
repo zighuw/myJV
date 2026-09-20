@@ -2,11 +2,21 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Engine/SynthEngine.h"
+
 class MyJVProcessor final : public juce::AudioProcessor
 {
 public:
     MyJVProcessor();
     ~MyJVProcessor() override = default;
+
+    static BusesProperties createBuses()
+    {
+        return BusesProperties()
+                   .withOutput ("Main", juce::AudioChannelSet::stereo(), true)
+                   .withOutput ("Out1", juce::AudioChannelSet::stereo(), true)
+                   .withOutput ("Out2", juce::AudioChannelSet::stereo(), true);
+    }
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -34,6 +44,7 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState apvts;
+    SynthEngine engine;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MyJVProcessor)
 };

@@ -15,6 +15,7 @@ FetchContent_Declare(JUCE
 FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
+    Source/Engine/SynthEngine.cpp
     Source/Params/ParameterLayout.cpp)
 
 juce_add_plugin(myJV
@@ -64,6 +65,7 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(Catch2)
 
     add_executable(myJV_tests
+        Tests/engine_tests.cpp
         Tests/param_tests.cpp
         Tests/test_main.cpp
         ${MYJV_CORE_SOURCES})
@@ -83,6 +85,7 @@ if(BUILD_TESTING)
     target_link_libraries(myJV_tests
         PRIVATE
             Catch2::Catch2
+            juce::juce_audio_formats
             juce::juce_audio_processors
         PUBLIC
             juce::juce_recommended_config_flags

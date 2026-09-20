@@ -2,25 +2,57 @@
 #include "Params/ParameterIDs.h"
 
 MyJVProcessor::MyJVProcessor()
-    : juce::AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true)),
+    : juce::AudioProcessor (createBuses()),
       apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
 }
 
-void MyJVProcessor::prepareToPlay (double, int) {}
+void MyJVProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    engine.prepare (sampleRate, samplesPerBlock);
+}
 
-void MyJVProcessor::releaseResources() {}
+void MyJVProcessor::releaseResources()
+{
+    engine.releaseResources();
+}
 
 bool MyJVProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    for (int bus = 1; bus < layouts.outputBuses.size(); ++bus)
+    {
+        const auto& channelSet = layouts.outputBuses.getReference (bus);
+
+        if (! channelSet.isDisabled() && channelSet != juce::AudioChannelSet::stereo())
+            return false;
+    }
+
+    return true;
 }
 
 // RT-safe
 void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    buffer.clear();
+
+    BusBuffers buses;
+
+    for (int bus = 0; bus < juce::jmin (3, getBusCount (false)); ++bus)
+    {
+        auto* outputBus = getBus (false, bus);
+
+        if (outputBus == nullptr || ! outputBus->isEnabled() || outputBus->getNumberOfChannels() < 2)
+            continue;
+
+        auto busBuffer = getBusBuffer (buffer, false, bus);
+        buses.l[bus] = busBuffer.getWritePointer (0);
+        buses.r[bus] = busBuffer.getWritePointer (1);
+    }
+
+    engine.process (buses, buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* MyJVProcessor::createEditor()
