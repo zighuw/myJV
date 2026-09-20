@@ -1,5 +1,7 @@
 #include "ParameterIDs.h"
 
+#include <iterator>
+
 namespace
 {
 using namespace juce;
@@ -30,7 +32,7 @@ const char* const kControlDestChoices[] { "OFF", "PITCH", "CUTOFF", "RESONANCE",
                                           "P_ENV_TIME", "P_ENV_LEVEL", "F_ENV_TIME", "F_ENV_LEVEL",
                                           "A_ENV_TIME", "A_ENV_LEVEL", "TONE_DELAY_TIME" };
 
-constexpr int kControlDestCount = 23;
+constexpr int kControlDestCount = static_cast<int> (std::size (kControlDestChoices));
 
 StringArray makeControlSourceChoices()
 {
@@ -134,6 +136,8 @@ void addWg (Layout& layout, const String& prefix)
     addInt (layout, prefix + "fineTune", -50, 50, 0);
     addFloat (layout, prefix + "randomPitch", 0.0f, 127.0f, 0.0f);
     addFloat (layout, prefix + "pitchKeyfollow", -100.0f, 100.0f, 100.0f);
+    addFloat (layout, prefix + "pitchLfo1Depth", 0.0f, 127.0f, 0.0f);
+    addFloat (layout, prefix + "pitchLfo2Depth", 0.0f, 127.0f, 0.0f);
 }
 
 void addTvf (Layout& layout, const String& prefix)

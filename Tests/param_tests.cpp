@@ -13,9 +13,10 @@ namespace
 {
 using namespace juce;
 
-constexpr int kExpectedTotalParameters = 510;
+constexpr int kExpectedTotalParameters = 518;
 constexpr int kExpectedPatchCommonParameters = 26;
-constexpr int kExpectedToneParameters = 121;
+constexpr int kExpectedToneParameters = 123;
+constexpr int kExpectedChoiceParameters = 106;
 
 class TestProcessor final : public AudioProcessor
 {
@@ -54,7 +55,11 @@ std::vector<RangedAudioParameter*> collectParameters (Fixture& fixture)
     std::vector<RangedAudioParameter*> parameters;
 
     for (auto* parameter : fixture.processor.getParameters())
-        parameters.push_back (dynamic_cast<RangedAudioParameter*> (parameter));
+    {
+        auto* ranged = dynamic_cast<RangedAudioParameter*> (parameter);
+        REQUIRE (ranged != nullptr);
+        parameters.push_back (ranged);
+    }
 
     return parameters;
 }
@@ -206,18 +211,44 @@ TEST_CASE ("every parameter round-trips host automation values")
 
     for (auto* parameter : collectParameters (fixture))
     {
-        const auto range = parameter->getNormalisableRange();
-        const auto steps = range.interval > 0.0f ? (range.end - range.start) / range.interval + 1.0f : 0.0f;
-        const auto tolerance = steps > 1.0f ? 1.0f / (steps - 1.0f) + 1.0e-4f : 1.0e-4f;
+        const auto storesNormalisedValueDirectly = dynamic_cast<const AudioParameterBool*> (parameter) != nullptr;
 
         for (const auto target : { 0.0f, 0.5f, 1.0f })
         {
             parameter->setValueNotifyingHost (target);
 
+            const auto expected = storesNormalisedValueDirectly
+                                      ? target
+                                      : parameter->convertTo0to1 (parameter->convertFrom0to1 (target));
+
             INFO ("parameter: " << parameter->getParameterID().toStdString() << " target: " << target);
-            REQUIRE (parameter->getValue() == Catch::Approx (target).margin (tolerance));
+            REQUIRE (parameter->getValue() == Catch::Approx (expected).margin (1.0e-4f));
         }
     }
+}
+
+TEST_CASE ("all choice parameters are well-formed")
+{
+    Fixture fixture;
+    int choiceCount = 0;
+
+    for (auto* parameter : collectParameters (fixture))
+    {
+        auto* choice = dynamic_cast<const AudioParameterChoice*> (parameter);
+
+        if (choice == nullptr)
+            continue;
+
+        ++choiceCount;
+        INFO (choice->getParameterID().toStdString());
+
+        REQUIRE (choice->choices.size() >= 2);
+
+        for (const auto& option : choice->choices)
+            REQUIRE (option.isNotEmpty());
+    }
+
+    REQUIRE (choiceCount == kExpectedChoiceParameters);
 }
 
 TEST_CASE ("registry dump", "[.registry]")

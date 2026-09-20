@@ -12,12 +12,7 @@ FetchContent_Declare(JUCE
     GIT_TAG 8.0.9
     GIT_SHALLOW TRUE)
 
-FetchContent_Declare(Catch2
-    URL https://codeload.github.com/catchorg/Catch2/tar.gz/refs/tags/v3.16.0
-    URL_HASH SHA256=0957CAE5821B17CE07F0833AAA52B5137643A8382203221F363A8303C109AF34
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-
-FetchContent_MakeAvailable(JUCE Catch2)
+FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
     Source/Params/ParameterLayout.cpp)
@@ -61,6 +56,13 @@ target_link_libraries(myJV
 include(CTest)
 
 if(BUILD_TESTING)
+    FetchContent_Declare(Catch2
+        URL https://codeload.github.com/catchorg/Catch2/tar.gz/refs/tags/v3.16.0
+        URL_HASH SHA256=0957CAE5821B17CE07F0833AAA52B5137643A8382203221F363A8303C109AF34
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+
+    FetchContent_MakeAvailable(Catch2)
+
     add_executable(myJV_tests
         Tests/param_tests.cpp
         Tests/test_main.cpp
