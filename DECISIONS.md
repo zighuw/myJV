@@ -53,7 +53,16 @@
 ## ADR-007：`myJV_core` 暂不链接 JUCE 模块（构建结构决策点延后至 M1-01）
 
 - 日期：2026-09-20
-- 状态：提议（M0-02 实施中发现并记录；待 M0-02 R2 审查批准，若否决则 M1-01 改采选项 ②）
+- 状态：已取代（M0-03 采纳选项 ②，见 ADR-008）
 - 背景：JUCE 模块是 INTERFACE 库（`JUCEModuleSupport.cmake` 的 `target_sources(INTERFACE ...)`），任何链接它们的 target 都会编译全部模块源码。`myJV_core` 若链接 `juce_audio_utils`，会把约 100 MB 的 JUCE 目标文件编入静态库，且与插件目标重复编译。
 - 决策：M0-02 中 `myJV_core` 不链接 JUCE（骨架仅含模块编译锚，无 JUCE 依赖）；插件与后续 Tests 各自链接 JUCE 模块（JUCE 原生模型）。
 - 影响：M1-01（首次在核心代码中使用 JUCE 类型）需二选一：① 核心库链接 JUCE，并按 JUCE 共享代码模式为消费方再导出 include/defines（JUCE 只编译一次，复杂度高）；② 放弃静态库，改用 `MYJV_CORE_SOURCES` 源列表由各目标自行编译（简单、符合 JUCE 惯例）。届时按 R2 记录新 ADR。
+
+## ADR-008：核心代码改用 `MYJV_CORE_SOURCES` 源列表（取代 ADR-007 的结构选择）
+
+- 日期：2026-09-20
+- 状态：已批准（M0-03 设计批准，人类）
+- 背景：M0-03 的 `ParameterLayout.cpp` 是首个需要 JUCE 类型的核心源文件；`myJV_core` 静态库不链接 JUCE 则无法编译该文件，链接 JUCE 则导致模块重复编译与约 100 MB 静态库（ADR-007 背景）。
+- 决策：移除 `myJV_core` 静态库与 5 个模块编译锚；定义 `set(MYJV_CORE_SOURCES ...)`，由插件目标与 `myJV_tests` 目标各自编译（连同各自链接的 JUCE 模块，符合 JUCE 原生模型）。
+- 理由：简单、无重复静态库、无需再导出 include/defines；JUCE 模块本就按消费目标编译。
+- 影响：插件与测试各自编译核心源与 JUCE 模块（本机约 2×5 分钟构建）；后续核心源文件加入 `MYJV_CORE_SOURCES` 即可被两目标共享。

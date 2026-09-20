@@ -1,0 +1,27 @@
+适用于 .NET Framework MSBuild 版本 18.10.1-1.26427.6+3cd27c13e
+
+  Checking File Globs
+  myJV_rc_lib.vcxproj -> D:\Workspace\myJV\build\myJV_rc_lib.dir\Release\myJV_rc_lib.lib
+  myJV.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\myJV_SharedCode.lib
+  myJV_vst3_helper.vcxproj -> D:\Workspace\myJV\build\Release\myJV_vst3_helper.exe
+  myJV_VST3.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\VST3\myJV.vst3\Contents\x86_64-win\myJV.vst3
+  removing moduleinfo.json
+  creating D:/Workspace/myJV/build/myJV_artefacts/Release/VST3/myJV.vst3
+  Catch2.vcxproj -> D:\Workspace\myJV\build\_deps\catch2-build\src\Release\Catch2.lib
+  Catch2WithMain.vcxproj -> D:\Workspace\myJV\build\_deps\catch2-build\src\Release\Catch2Main.lib
+  myJV_Standalone.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\Standalone\myJV.exe
+  param_tests.cpp
+D:\Workspace\myJV\Tests\param_tests.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失 [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+D:\Workspace\myJV\Tests\param_tests.cpp(217,24): error C2662: “void juce::AudioProcessorParameter::setValueNotifyingHost(float)”: 不能将“this”指针从“const juce::RangedAudioParameter”转换为“juce::AudioProcessorParameter &” [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+      D:\Workspace\myJV\Tests\param_tests.cpp(217,13):
+      转换丢失限定符
+      D:\Workspace\myJV\build\_deps\juce-src\modules\juce_audio_processors\processors\juce_AudioProcessorParameter.h(141,10):
+      参见“juce::AudioProcessorParameter::setValueNotifyingHost”的声明
+      D:\Workspace\myJV\Tests\param_tests.cpp(217,24):
+      尝试匹配参数列表“(const _Elem)”时
+          with
+          [
+              _Elem=float
+          ]
+  
+BUILD_EXIT=1

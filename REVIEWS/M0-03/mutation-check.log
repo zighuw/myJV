@@ -1,0 +1,21 @@
+﻿Randomness seeded to: 1298204849
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+myJV_tests.exe is a Catch2 v3.16.0 host application.
+Run with -? for options
+
+-------------------------------------------------------------------------------
+key parameter defaults match the specification
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\param_tests.cpp(162)
+...............................................................................
+
+D:\Workspace\myJV\Tests\param_tests.cpp(174): FAILED:
+  REQUIRE( defaultValue ("patch.common.pan") == Catch::Approx (64.0f) )
+with expansion:
+  63.0f == Approx( 64.0 )
+
+===============================================================================
+test cases:    8 |    7 passed | 1 failed
+assertions: 3079 | 3078 passed | 1 failed
+

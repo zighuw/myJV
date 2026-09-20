@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- | --- |
 | M0-01 CMake + JUCE 工程 | Done | 2026-09-20 会话 1 | [evidence](REVIEWS/M0-01/evidence.md) | R2 | 三平台日志待 M0-06（ADR-003） |
 | M0-02 目录与模块骨架 | Done | 2026-09-20 会话 2 | [evidence](REVIEWS/M0-02/evidence.md) | R2 | 构建结构转 M0-03（ADR-008）；头文件加入 `target_sources` 转 M0-06 |
-| M0-03 APVTS 参数框架 | Backlog | — | — | R1 | — |
+| M0-03 APVTS 参数框架 | In Review | 2026-09-20 会话 3 | [evidence](REVIEWS/M0-03/evidence.md) | R2 | 参数默认值/选项命名假设待裁决（M4-08）；宿主自动化截图待补；510 vs 附录 A 约 515 |
 | M0-04 引擎空壳 + BusBuffers + 测试音 | Backlog | — | — | R2 | — |
 | M0-05 MIDI 子块切分框架 | Backlog | — | — | R2 | — |
 | M0-06 CI 流水线 | Backlog | — | — | R2 | — |
@@ -37,3 +37,10 @@
 - 终审（AI 交叉审查）：0 Critical / 1 Important / 8 Minor；Important（核心库 PIC）已修复；证据补强（清空全量重建 + UTF-8 日志）；ADR-007 状态改为"提议（待 R2）"
 - 状态：In Review（R2，待人类审查）
 - 收口（2026-09-20）：人类合并至 main（`7f5c7de`）并补入宿主加载截图（`REVIEWS/M0-02/2026-09-20 133140.png`）→ Done
+
+### 2026-09-20 会话 3（M0-03）
+
+- 范围：APVTS 参数框架 + 全量参数注册（510）+ Catch2 测试目标 + 构建结构改源列表
+- 决策：ADR-008（`MYJV_CORE_SOURCES` 源列表，取代 ADR-007 结构选择）；Catch2 v3.16.0 经 tarball URL + SHA256 固定（git 协议不可达）
+- 结果：510 参数注册（Patch Common 26 + Tone×4×121；Float 198 / Int 160 / Choice 106 / Bool 46）；测试 8 用例 / 3087 断言全绿；ctest 通过；变异抽查有效（pan 64→63 变红）；构建 0 error / 0 warning（`/utf-8` 消除 C4819）；冒烟通过；注册表归档
+- 状态：In Review（R2，待人类审查）
