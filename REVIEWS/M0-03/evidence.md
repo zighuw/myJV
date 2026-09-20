@@ -3,7 +3,7 @@
 - 日期：2026-09-20
 - 分支：`feature/M0-03-apvts-parameters`
 - 审查级别：R2（受保护区域：`CMakeLists.txt`、`ParameterIDs.h`；人类裁决）
-- 状态：待人类审查（终审修复轮已执行，见 4.2）
+- 状态：已完成（人类已合并至 main `fd4f611` 并补入宿主自动化截图 `REVIEWS/M0-03/2026-09-20 213614.png`）
 
 ## 1. 环境
 
@@ -103,7 +103,7 @@
 
 ## 6. 待补证据
 
-- [ ] 宿主参数自动化演示截图（人类：在宿主中自动化 `patch.common.level` 等）
+- [x] 宿主参数自动化演示截图（人类已补：`REVIEWS/M0-03/2026-09-20 213614.png`，`level/pan/analogFeel` 自动化）
 - [ ] macOS/Linux 构建与测试（M0-06 CI）
 - [x] 变异抽查 ×2（`mutation-check.log`、`mutation-check2-test-sensitivity.log`）
 - [x] 注册表由 `[.registry]` 隐藏用例生成（写入检出目录属证据生成例外；注册表只含选项数，不含完整选项名）
