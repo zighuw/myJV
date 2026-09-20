@@ -10,7 +10,7 @@
 | M0-01 CMake + JUCE 工程 | Done | 2026-09-20 会话 1 | [evidence](REVIEWS/M0-01/evidence.md) | R2 | 三平台日志待 M0-06（ADR-003） |
 | M0-02 目录与模块骨架 | Done | 2026-09-20 会话 2 | [evidence](REVIEWS/M0-02/evidence.md) | R2 | 构建结构转 M0-03（ADR-008）；头文件加入 `target_sources` 转 M0-06 |
 | M0-03 APVTS 参数框架 | Done | 2026-09-20 会话 3 | [evidence](REVIEWS/M0-03/evidence.md) | R2 | 参数假设待裁决（M4-08：默认值/选项命名/ID 命名/控制深度范围） |
-| M0-04 引擎空壳 + BusBuffers + 测试音 | Backlog | — | — | R2 | — |
+| M0-04 引擎空壳 + BusBuffers + 测试音 | In Review | 2026-09-20 会话 4 | [evidence](REVIEWS/M0-04/evidence.md) | R2 | 临时测试音待 M1-04 移除（ADR-010）；宿主多输出截图待补 |
 | M0-05 MIDI 子块切分框架 | Backlog | — | — | R2 | — |
 | M0-06 CI 流水线 | Backlog | — | — | R2 | — |
 | M0-07 日志/断言/崩溃报告基础设施 | Backlog | — | — | R1 | — |
@@ -47,3 +47,11 @@
 - 最终验证：9 用例 / 9436 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning
 - 状态：In Review（R2，待人类审查）
 - 收口（2026-09-20）：人类合并至 main（`fd4f611`）并补入宿主自动化截图（`REVIEWS/M0-03/2026-09-20 213614.png`）→ Done
+
+### 2026-09-20 会话 4（M0-04）
+
+- 范围：引擎空壳（SynthEngine/BusBuffers）+ 插件总线接线 + 临时测试音 + 引擎测试
+- 决策：ADR-010（临时测试音，M1-04 移除）
+- 结果：3 路立体声输出（Main/Out1/Out2）；测试音 440/660/880 Hz @ -20 dBFS；13 用例 / 57458 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；WAV ×3 归档；冒烟通过
+- 变异抽查：Out1 660→700 Hz → 测试变红（已恢复）
+- 状态：In Review（R2，待人类审查）

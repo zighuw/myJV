@@ -1,0 +1,81 @@
+CMake is re-running because D:/Workspace/myJV/build/CMakeFiles/generate.stamp is out-of-date.
+  the file 'D:/Workspace/myJV/CMakeLists.txt'
+  is newer than 'D:/Workspace/myJV/build/CMakeFiles/generate.stamp.depend'
+  result='-1'
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.22631.
+-- Configuring juceaide
+-- Building juceaide
+-- Exporting juceaide
+-- Testing juceaide
+-- Finished setting up juceaide
+-- Configuring done (3.2s)
+-- Generating done (0.2s)
+-- Build files have been written to: D:/Workspace/myJV/build
+适用于 .NET Framework MSBuild 版本 18.10.1-1.26427.6+3cd27c13e
+
+  Checking File Globs
+  myJV_rc_lib.vcxproj -> D:\Workspace\myJV\build\myJV_rc_lib.dir\Release\myJV_rc_lib.lib
+  SynthEngine.cpp
+  ParameterLayout.cpp
+  MyJVProcessor.cpp
+  myJV.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\myJV_SharedCode.lib
+  myJV_vst3_helper.vcxproj -> D:\Workspace\myJV\build\Release\myJV_vst3_helper.exe
+    正在创建库 D:/Workspace/myJV/build/myJV_artefacts/Release/VST3/myJV.lib 和对象 D:/Workspace/myJV/build/myJV_artefacts/Release/VST3/myJV.exp
+  myJV_VST3.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\VST3\myJV.vst3\Contents\x86_64-win\myJV.vst3
+  removing moduleinfo.json
+  creating D:/Workspace/myJV/build/myJV_artefacts/Release/VST3/myJV.vst3
+  Catch2.vcxproj -> D:\Workspace\myJV\build\_deps\catch2-build\src\Release\Catch2.lib
+  Catch2WithMain.vcxproj -> D:\Workspace\myJV\build\_deps\catch2-build\src\Release\Catch2Main.lib
+  myJV_Standalone.vcxproj -> D:\Workspace\myJV\build\myJV_artefacts\Release\Standalone\myJV.exe
+  engine_tests.cpp
+  param_tests.cpp
+  test_main.cpp
+  SynthEngine.cpp
+  ParameterLayout.cpp
+  juce_audio_formats.cpp
+  juce_audio_basics.cpp
+  juce_core.cpp
+  juce_core_CompilationTime.cpp
+  juce_audio_processors.cpp
+  juce_audio_processors_ara.cpp
+  juce_audio_processors_lv2_libs.cpp
+  juce_gui_extra.cpp
+  juce_gui_basics.cpp
+  juce_graphics.cpp
+  juce_graphics_Harfbuzz.cpp
+  juce_events.cpp
+  juce_data_structures.cpp
+D:\Workspace\myJV\Tests\engine_tests.cpp(90,12): error C2664: “void SynthEngine::process(BusBuffers &,int) noexcept”: 无法将参数 1 从“BusBuffers”转换为“BusBuffers &” [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+      D:\Workspace\myJV\Tests\engine_tests.cpp(90,43):
+      非常量引用只能绑定到左值
+      D:\Workspace\myJV\Source\Engine\SynthEngine.h(20,10):
+      参见“SynthEngine::process”的声明
+      D:\Workspace\myJV\Tests\engine_tests.cpp(90,12):
+      尝试匹配参数列表“(BusBuffers, const int)”时
+  
+D:\Workspace\myJV\Tests\engine_tests.cpp(109,12): error C2664: “void SynthEngine::process(BusBuffers &,int) noexcept”: 无法将参数 1 从“BusBuffers”转换为“BusBuffers &” [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+      D:\Workspace\myJV\Tests\engine_tests.cpp(109,44):
+      非常量引用只能绑定到左值
+      D:\Workspace\myJV\Source\Engine\SynthEngine.h(20,10):
+      参见“SynthEngine::process”的声明
+      D:\Workspace\myJV\Tests\engine_tests.cpp(109,12):
+      尝试匹配参数列表“(BusBuffers, const int)”时
+  
+D:\Workspace\myJV\Tests\engine_tests.cpp(123,21): error C2664: “void SynthEngine::process(BusBuffers &,int) noexcept”: 无法将参数 1 从“BusBuffers”转换为“BusBuffers &” [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+      D:\Workspace\myJV\Tests\engine_tests.cpp(123,54):
+      非常量引用只能绑定到左值
+      D:\Workspace\myJV\Source\Engine\SynthEngine.h(20,10):
+      参见“SynthEngine::process”的声明
+      D:\Workspace\myJV\Tests\engine_tests.cpp(123,21):
+      尝试匹配参数列表“(BusBuffers, const int)”时
+  
+D:\Workspace\myJV\Tests\engine_tests.cpp(152,12): error C2664: “void SynthEngine::process(BusBuffers &,int) noexcept”: 无法将参数 1 从“BusBuffers”转换为“BusBuffers &” [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+      D:\Workspace\myJV\Tests\engine_tests.cpp(152,43):
+      非常量引用只能绑定到左值
+      D:\Workspace\myJV\Source\Engine\SynthEngine.h(20,10):
+      参见“SynthEngine::process”的声明
+      D:\Workspace\myJV\Tests\engine_tests.cpp(152,12):
+      尝试匹配参数列表“(BusBuffers, const int)”时
+  
+D:\Workspace\myJV\Tests\engine_tests.cpp(166,20): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\Workspace\myJV\build\myJV_tests.vcxproj]
+BUILD_EXIT=1
