@@ -12,25 +12,15 @@ FetchContent_Declare(JUCE
     GIT_TAG 8.0.9
     GIT_SHALLOW TRUE)
 
-FetchContent_MakeAvailable(JUCE)
+FetchContent_Declare(Catch2
+    URL https://codeload.github.com/catchorg/Catch2/tar.gz/refs/tags/v3.16.0
+    URL_HASH SHA256=0957CAE5821B17CE07F0833AAA52B5137643A8382203221F363A8303C109AF34
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
-add_library(myJV_core STATIC
-    Source/Params/Params.cpp
-    Source/Model/Model.cpp
-    Source/Engine/Engine.cpp
-    Source/DSP/DSP.cpp
-    Source/IO/IO.cpp)
+FetchContent_MakeAvailable(JUCE Catch2)
 
-target_include_directories(myJV_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
-
-set_target_properties(myJV_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-target_compile_features(myJV_core PRIVATE cxx_std_20)
-
-target_link_libraries(myJV_core
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags)
+set(MYJV_CORE_SOURCES
+    Source/Params/ParameterLayout.cpp)
 
 juce_add_plugin(myJV
     COMPANY_NAME "myJV"
@@ -46,9 +36,16 @@ juce_add_plugin(myJV
     VERSION ${PROJECT_VERSION})
 
 target_sources(myJV PRIVATE
+    ${MYJV_CORE_SOURCES}
     Source/Plugin/MyJVProcessor.cpp)
 
+target_include_directories(myJV PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
 target_compile_features(myJV PRIVATE cxx_std_20)
+
+if(MSVC)
+    target_compile_options(myJV PRIVATE /utf-8)
+endif()
 
 target_compile_definitions(myJV
     PUBLIC
@@ -56,8 +53,38 @@ target_compile_definitions(myJV
 
 target_link_libraries(myJV
     PRIVATE
-        myJV_core
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
+
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(myJV_tests
+        Tests/param_tests.cpp
+        Tests/test_main.cpp
+        ${MYJV_CORE_SOURCES})
+
+    target_include_directories(myJV_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
+    target_compile_features(myJV_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(myJV_tests PRIVATE /utf-8)
+    endif()
+
+    target_compile_definitions(myJV_tests
+        PRIVATE
+            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+    target_link_libraries(myJV_tests
+        PRIVATE
+            Catch2::Catch2
+            juce::juce_audio_processors
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    add_test(NAME myJV_tests COMMAND myJV_tests)
+endif()

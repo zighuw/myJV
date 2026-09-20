@@ -1,7 +1,9 @@
 #include "MyJVProcessor.h"
+#include "Params/ParameterIDs.h"
 
 MyJVProcessor::MyJVProcessor()
-    : juce::AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
+    : juce::AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true)),
+      apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
 }
 
