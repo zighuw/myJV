@@ -23,11 +23,11 @@ bool MyJVProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 }
 
 // RT-safe
-void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) noexcept
+void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
 
-    engine.process (buildBusBuffers (*this, buffer), buffer.getNumSamples());
+    engine.process (buildBusBuffers (*this, buffer), midiMessages, buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* MyJVProcessor::createEditor()

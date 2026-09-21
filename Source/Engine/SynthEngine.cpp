@@ -20,8 +20,39 @@ void SynthEngine::prepare (double newSampleRate, int) noexcept
 
 void SynthEngine::releaseResources() noexcept {}
 
+void SynthEngine::setMidiEventSink (MidiEventSink* sink) noexcept
+{
+    midiSink = sink;
+}
+
 // RT-safe
-void SynthEngine::process (const BusBuffers& buses, int numSamples) noexcept
+void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept
+{
+    int currentSample = 0;
+
+    for (const auto metadata : midi)
+    {
+        const auto eventSample = metadata.samplePosition;
+
+        if (eventSample < 0 || eventSample >= numSamples)
+            continue;
+
+        if (eventSample > currentSample)
+        {
+            renderSegment (buses, currentSample, eventSample - currentSample);
+            currentSample = eventSample;
+        }
+
+        if (midiSink != nullptr)
+            midiSink->handleMidiEvent (metadata);
+    }
+
+    if (currentSample < numSamples)
+        renderSegment (buses, currentSample, numSamples - currentSample);
+}
+
+// RT-safe
+void SynthEngine::renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept
 {
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
     {
@@ -35,8 +66,8 @@ void SynthEngine::process (const BusBuffers& buses, int numSamples) noexcept
         {
             const auto value = kTestToneLevel * static_cast<float> (std::sin (phase));
 
-            buses.l[bus][i] = value;
-            buses.r[bus][i] = value;
+            buses.l[bus][startSample + i] = value;
+            buses.r[bus][startSample + i] = value;
 
             phase += phaseDelta;
 
