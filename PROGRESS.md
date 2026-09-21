@@ -10,7 +10,7 @@
 | M0-01 CMake + JUCE 工程 | Done | 2026-09-20 会话 1 | [evidence](REVIEWS/M0-01/evidence.md) | R2 | 三平台日志待 M0-06（ADR-003） |
 | M0-02 目录与模块骨架 | Done | 2026-09-20 会话 2 | [evidence](REVIEWS/M0-02/evidence.md) | R2 | 构建结构转 M0-03（ADR-008）；头文件加入 `target_sources` 转 M0-06 |
 | M0-03 APVTS 参数框架 | Done | 2026-09-20 会话 3 | [evidence](REVIEWS/M0-03/evidence.md) | R2 | 参数假设待裁决（M4-08：默认值/选项命名/ID 命名/控制深度范围） |
-| M0-04 引擎空壳 + BusBuffers + 测试音 | In Review | 2026-09-20 会话 4 | [evidence](REVIEWS/M0-04/evidence.md) | R2 | 临时测试音待 M1-04 移除（ADR-010）；宿主多输出截图待补 |
+| M0-04 引擎空壳 + BusBuffers + 测试音 | Done | 2026-09-20 会话 4 | [evidence](REVIEWS/M0-04/evidence.md) | R2 | 临时测试音待 M1-04 移除（ADR-010）；ASan/UBSan 随 M0-06 |
 | M0-05 MIDI 子块切分框架 | Backlog | — | — | R2 | — |
 | M0-06 CI 流水线 | Backlog | — | — | R2 | — |
 | M0-07 日志/断言/崩溃报告基础设施 | Backlog | — | — | R1 | — |
@@ -57,3 +57,4 @@
 - 终审（AI 交叉审查）：0 Critical / 2 Important / 10 Minor；Important 已修复（提取可测的 `isLayoutSupported`/`buildBusBuffers` 并新增处理器级映射/布局测试 ×4；修正电平口径为峰值 -20 dBFS / RMS ≈ -23 dBFS）；Minor 修复（`noexcept`、`while` 回绕、44.1 kHz、逐采样 L/R、头文件解耦、`kNumOutputBuses`、边界用例）；变异抽查 ×2
 - 最终验证：19 用例 / 60566 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning
 - 状态：In Review（R2，待人类审查）
+- 收口（2026-09-22）：人类合并至 main（`f48786a`）并补入宿主多输出截图（`REVIEWS/M0-04/2026-09-22 003308.png`，6 路输出）→ Done

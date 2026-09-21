@@ -3,7 +3,7 @@
 - 日期：2026-09-20
 - 分支：`feature/M0-04-engine-shell`
 - 审查级别：R2（首次触达 RT 路径约束；受保护区域：`CMakeLists.txt`；人类裁决）
-- 状态：待人类审查（终审修复轮已执行，见 4.2）
+- 状态：已完成（人类已合并至 main `f48786a` 并补入宿主多输出截图 `REVIEWS/M0-04/2026-09-22 003308.png`）
 
 ## 1. 环境
 
@@ -96,7 +96,7 @@
 
 ## 5. 待补证据
 
-- [ ] 宿主多输出截图（人类：宿主中插件显示 3 路输出；并确认可听到测试音）
+- [x] 宿主多输出截图（人类已补：`REVIEWS/M0-04/2026-09-22 003308.png`，宿主 pin connector 显示 6 路输出）
 - [ ] macOS/Linux 构建与测试（M0-06 CI）
 - [ ] ASan/UBSan（首个 RT 路径；MSVC ASan 环境复杂，建议随 M0-06 CI 覆盖）
 - [x] 变异抽查 ×2（`mutation-check.log`、`mutation-check2-bus-mapping.log`）
