@@ -1,6 +1,12 @@
 #pragma once
 
-#include <juce_audio_basics/juce_audio_basics.h>
+#include <atomic>
+
+namespace juce
+{
+class MidiBuffer;
+struct MidiMessageMetadata;
+}
 
 inline constexpr int kNumOutputBuses = 3;
 
@@ -36,7 +42,7 @@ private:
     // RT-safe
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
 
-    MidiEventSink* midiSink = nullptr;
+    std::atomic<MidiEventSink*> midiSink { nullptr };
     double sampleRate = 48000.0;
     double phases[kNumOutputBuses] {};
 };

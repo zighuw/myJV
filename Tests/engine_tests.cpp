@@ -373,8 +373,29 @@ TEST_CASE ("engine skips midi events outside the block")
     engine.setMidiEventSink (&sink);
 
     MidiBuffer midi;
-    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), kNumSamples);
-    midi.addEvent (MidiMessage::noteOn (1, 61, 0.8f), kNumSamples + 100);
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), -1);
+    midi.addEvent (MidiMessage::noteOn (1, 61, 0.8f), kNumSamples);
+    midi.addEvent (MidiMessage::noteOn (1, 62, 0.8f), kNumSamples + 100);
+    midi.addEvent (MidiMessage::noteOn (1, 63, 0.8f), 100);
+
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (sink.numEvents == 1);
+    REQUIRE (sink.events[0].samplePosition == 100);
+    REQUIRE (sink.events[0].bytes[1] == 63);
+}
+
+TEST_CASE ("engine handles a sink being cleared")
+{
+    BusFixture fixture;
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+    engine.setMidiEventSink (nullptr);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 100);
 
     engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
 
@@ -434,8 +455,15 @@ TEST_CASE ("midi events do not alter the rendered audio")
     REQUIRE (sink.numEvents == 3);
 
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
-        for (int i = 0; i < jmin (kNumSamples, 4096); ++i)
-            REQUIRE (split.buffers[bus].getSample (0, i) == Catch::Approx (reference.buffers[bus].getSample (0, i)).margin (1.0e-6f));
+    {
+        float maxDifference = 0.0f;
+
+        for (int i = 0; i < kNumSamples; ++i)
+            maxDifference = jmax (maxDifference, std::abs (split.buffers[bus].getSample (0, i)
+                                                          - reference.buffers[bus].getSample (0, i)));
+
+        REQUIRE (maxDifference == 0.0f);
+    }
 }
 
 TEST_CASE ("test tone phase is continuous across blocks")

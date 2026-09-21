@@ -1,5 +1,6 @@
 #include "SynthEngine.h"
 
+#include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_core/juce_core.h>
 
 #include <cmath>
@@ -22,7 +23,7 @@ void SynthEngine::releaseResources() noexcept {}
 
 void SynthEngine::setMidiEventSink (MidiEventSink* sink) noexcept
 {
-    midiSink = sink;
+    midiSink.store (sink, std::memory_order_release);
 }
 
 // RT-safe
@@ -43,8 +44,8 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
             currentSample = eventSample;
         }
 
-        if (midiSink != nullptr)
-            midiSink->handleMidiEvent (metadata);
+        if (auto* sink = midiSink.load (std::memory_order_acquire))
+            sink->handleMidiEvent (metadata);
     }
 
     if (currentSample < numSamples)
