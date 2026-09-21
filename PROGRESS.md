@@ -62,7 +62,8 @@
 ### 2026-09-22 会话 5（M0-05）
 
 - 范围：MIDI 子块切分框架（架构 5.3 第 3–4 步）+ 零拷贝事件分发接口
-- 决策：`MidiEventSink` 虚接口（`const juce::MidiMessageMetadata&`；`MidiMessage` 构造会堆分配故不采用）
-- 结果：25 用例 / 72872 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；冒烟通过
-- 变异抽查：分发位置固定 0 → 2 断言失败（等价变异被正确放行）
+- 决策：`MidiEventSink` 虚接口（`const juce::MidiMessageMetadata&` 零拷贝；`MidiMessage` 长消息构造会堆分配故不采用）；sink 指针为 `std::atomic`（ADR-011）
+- 结果：26 用例 / 60590 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；冒烟通过
+- 变异抽查：分发位置固定 0 → 3 断言失败（等价变异被正确放行）
+- 终审（AI 交叉审查）：0 Critical / 2 Important / 7 Minor；Important 已修复（sink 改 `std::atomic` release/acquire；音频一致性改为全块逐采样最大差）；Minor 修复（前向声明、ADR-011、越界对照/负位置/sink 清空用例、日志头注）；流程记录：本会话实现与测试同批完成（非严格先失败测试），以变异抽查补偿
 - 状态：In Review（R2，待人类审查）

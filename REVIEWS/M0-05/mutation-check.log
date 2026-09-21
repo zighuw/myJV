@@ -1,8 +1,19 @@
-﻿Randomness seeded to: 2873924166
+﻿Randomness seeded to: 2244290353
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 myJV_tests.exe is a Catch2 v3.16.0 host application.
 Run with -? for options
+
+-------------------------------------------------------------------------------
+engine skips midi events outside the block
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\engine_tests.cpp(367)
+...............................................................................
+
+D:\Workspace\myJV\Tests\engine_tests.cpp(384): FAILED:
+  REQUIRE( sink.events[0].samplePosition == 100 )
+with expansion:
+  0 == 100
 
 -------------------------------------------------------------------------------
 engine dispatches midi events at sample-accurate positions
@@ -27,6 +38,6 @@ with expansion:
   0 == 500 (0x1f4)
 
 ===============================================================================
-test cases:    25 |    23 passed | 2 failed
-assertions: 72863 | 72861 passed | 2 failed
+test cases:    26 |    23 passed | 3 failed
+assertions: 60580 | 60577 passed | 3 failed
 

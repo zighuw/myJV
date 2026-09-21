@@ -1,3 +1,6 @@
+﻿# M0-05 build log
+# command: D:\Program\CMake\bin\cmake.exe --build build --config Release --clean-first
+# date: 2026-09-22T00:48:49
 适用于 .NET Framework MSBuild 版本 18.10.1-1.26427.6+3cd27c13e
 
 适用于 .NET Framework MSBuild 版本 18.10.1-1.26427.6+3cd27c13e

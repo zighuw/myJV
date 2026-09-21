@@ -84,3 +84,12 @@
 - 背景：架构 1.3 原则 6"采样器为唯一波形源"；M0 里程碑目标包含 Standalone/VST3 出声。
 - 决策：`SynthEngine` 内置临时测试音（Main 440 Hz、Out1 660 Hz、Out2 880 Hz，**峰值** -20 dBFS（RMS ≈ -23 dBFS）正弦），插件加载即发声，用于验证音频通路与总线路由；总线指针为空时跳过。
 - 影响：**M1-04 `SamplePlayer` 落地后必须移除测试音分支**；移除前不得进入 v1.0。
+
+## ADR-011：MIDI 事件分发接口（MidiEventSink，零拷贝）
+
+- 日期：2026-09-22
+- 状态：已批准（M0-05 设计批准，人类）
+- 决策：引擎经 `MidiEventSink` 虚接口分发事件，参数为 `const juce::MidiMessageMetadata&`（零拷贝）；sink 指针为 `std::atomic<MidiEventSink*>`（release 存 / acquire 取），符合架构 3.5 的原子指针交换约束。
+- 理由：`juce::MidiMessage` 的长消息构造会堆分配（3 字节通道消息使用内联存储，>8 字节才分配），RT 路径不可逐事件构造；虚调用本身无分配。
+- 契约：`event.data` 仅在回调期间有效，处理器不得跨回调持有；实现不得在 `handleMidiEvent` 内分配/加锁。
+- 影响：M3-01 的 `VoiceManager` 将实现该接口；若需跨块保留事件，必须复制到预分配缓冲。
