@@ -1,0 +1,32 @@
+﻿Randomness seeded to: 2873924166
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+myJV_tests.exe is a Catch2 v3.16.0 host application.
+Run with -? for options
+
+-------------------------------------------------------------------------------
+engine dispatches midi events at sample-accurate positions
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\engine_tests.cpp(319)
+...............................................................................
+
+D:\Workspace\myJV\Tests\engine_tests.cpp(336): FAILED:
+  REQUIRE( sink.events[1].samplePosition == 12345 )
+with expansion:
+  0 == 12345 (0x3039)
+
+-------------------------------------------------------------------------------
+engine preserves buffer order for events at the same position
+-------------------------------------------------------------------------------
+D:\Workspace\myJV\Tests\engine_tests.cpp(343)
+...............................................................................
+
+D:\Workspace\myJV\Tests\engine_tests.cpp(359): FAILED:
+  REQUIRE( sink.events[0].samplePosition == 500 )
+with expansion:
+  0 == 500 (0x1f4)
+
+===============================================================================
+test cases:    25 |    23 passed | 2 failed
+assertions: 72863 | 72861 passed | 2 failed
+
