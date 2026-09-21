@@ -91,6 +91,35 @@ BusesLayout makeLayout (const AudioChannelSet& main, const AudioChannelSet& out1
     return layout;
 }
 
+class RecordingSink final : public MidiEventSink
+{
+public:
+    struct Event
+    {
+        int samplePosition = 0;
+        int numBytes = 0;
+        juce::uint8 bytes[3] {};
+    };
+
+    void handleMidiEvent (const juce::MidiMessageMetadata& event) noexcept override
+    {
+        if (numEvents >= maxEvents)
+            return;
+
+        auto& recorded = events[numEvents++];
+        recorded.samplePosition = event.samplePosition;
+        recorded.numBytes = juce::jmin (3, event.numBytes);
+
+        for (int i = 0; i < recorded.numBytes; ++i)
+            recorded.bytes[i] = event.data[i];
+    }
+
+    static constexpr int maxEvents = 16;
+
+    Event events[maxEvents];
+    int numEvents = 0;
+};
+
 double measureFrequency (const AudioBuffer<float>& buffer, double sampleRate, int channel = 0)
 {
     const auto* data = buffer.getReadPointer (channel);
@@ -202,7 +231,7 @@ TEST_CASE ("engine renders into the mapped buses of a disabled-aux layout")
 
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
-    engine.process (MyJVProcessor::buildBusBuffers (processor, buffer), kNumSamples);
+    engine.process (MyJVProcessor::buildBusBuffers (processor, buffer), MidiBuffer(), kNumSamples);
 
     REQUIRE (measureFrequency (buffer, kSampleRate, 0) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
     REQUIRE (measureFrequency (buffer, kSampleRate, 2) == Catch::Approx (kExpectedFrequencies[2]).margin (2.0));
@@ -215,7 +244,7 @@ TEST_CASE ("engine renders the test tone on each bus")
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
 
-    engine.process (fixture.makeBusBuffers(), kNumSamples);
+    engine.process (fixture.makeBusBuffers(), MidiBuffer(), kNumSamples);
 
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
     {
@@ -237,7 +266,7 @@ TEST_CASE ("test tone frequency is sample-rate independent")
     SynthEngine engine;
     engine.prepare (kAlternateSampleRate, kNumSamples);
 
-    engine.process (fixture.makeBusBuffers(), kNumSamples);
+    engine.process (fixture.makeBusBuffers(), MidiBuffer(), kNumSamples);
 
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
         REQUIRE (measureFrequency (fixture.buffers[bus], kAlternateSampleRate) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0));
@@ -249,7 +278,7 @@ TEST_CASE ("engine tolerates missing auxiliary buses")
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
 
-    engine.process (fixture.makeBusBuffers (false), kNumSamples);
+    engine.process (fixture.makeBusBuffers (false), MidiBuffer(), kNumSamples);
 
     REQUIRE (measureFrequency (fixture.buffers[0], kSampleRate) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
     REQUIRE (fixture.buffers[1].getMagnitude (0, 0, kNumSamples) == 0.0f);
@@ -269,7 +298,7 @@ TEST_CASE ("engine tolerates partially mapped buses")
 
     SynthEngine engine;
     engine.prepare (kSampleRate, 256);
-    engine.process (buses, 256);
+    engine.process (buses, MidiBuffer(), 256);
 
     REQUIRE (leftOnly.getMagnitude (0, 0, 256) == 0.0f);
     REQUIRE (rightOnly.getMagnitude (0, 0, 256) == 0.0f);
@@ -281,10 +310,132 @@ TEST_CASE ("engine process with zero samples is a no-op")
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
 
-    engine.process (fixture.makeBusBuffers(), 0);
+    engine.process (fixture.makeBusBuffers(), MidiBuffer(), 0);
 
     for (const auto& buffer : fixture.buffers)
         REQUIRE (buffer.getMagnitude (0, 0, kNumSamples) == 0.0f);
+}
+
+TEST_CASE ("engine dispatches midi events at sample-accurate positions")
+{
+    BusFixture fixture;
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 0);
+    midi.addEvent (MidiMessage::noteOn (1, 62, 0.8f), 12345);
+    midi.addEvent (MidiMessage::noteOff (1, 60), kNumSamples - 1);
+
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (sink.numEvents == 3);
+    REQUIRE (sink.events[0].samplePosition == 0);
+    REQUIRE (sink.events[1].samplePosition == 12345);
+    REQUIRE (sink.events[2].samplePosition == kNumSamples - 1);
+    REQUIRE (sink.events[0].bytes[0] == 0x90);
+    REQUIRE (sink.events[1].bytes[1] == 62);
+    REQUIRE (sink.events[2].bytes[0] == 0x80);
+}
+
+TEST_CASE ("engine preserves buffer order for events at the same position")
+{
+    BusFixture fixture;
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::controllerEvent (1, 1, 10), 500);
+    midi.addEvent (MidiMessage::controllerEvent (1, 1, 20), 500);
+    midi.addEvent (MidiMessage::controllerEvent (1, 1, 30), 500);
+
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (sink.numEvents == 3);
+    REQUIRE (sink.events[0].samplePosition == 500);
+    REQUIRE (sink.events[1].samplePosition == 500);
+    REQUIRE (sink.events[2].samplePosition == 500);
+    REQUIRE (sink.events[0].bytes[2] == 10);
+    REQUIRE (sink.events[1].bytes[2] == 20);
+    REQUIRE (sink.events[2].bytes[2] == 30);
+}
+
+TEST_CASE ("engine skips midi events outside the block")
+{
+    BusFixture fixture;
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), kNumSamples);
+    midi.addEvent (MidiMessage::noteOn (1, 61, 0.8f), kNumSamples + 100);
+
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (sink.numEvents == 0);
+}
+
+TEST_CASE ("engine dispatches nothing for a zero-length block")
+{
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 0);
+
+    BusBuffers buses;
+    engine.process (buses, midi, 0);
+
+    REQUIRE (sink.numEvents == 0);
+}
+
+TEST_CASE ("engine processes events without a configured sink")
+{
+    BusFixture fixture;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 100);
+
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (measureFrequency (fixture.buffers[0], kSampleRate) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
+}
+
+TEST_CASE ("midi events do not alter the rendered audio")
+{
+    BusFixture reference;
+    SynthEngine referenceEngine;
+    referenceEngine.prepare (kSampleRate, kNumSamples);
+    referenceEngine.process (reference.makeBusBuffers(), MidiBuffer(), kNumSamples);
+
+    BusFixture split;
+    RecordingSink sink;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setMidiEventSink (&sink);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 0);
+    midi.addEvent (MidiMessage::noteOn (1, 62, 0.8f), 12345);
+    midi.addEvent (MidiMessage::noteOff (1, 60), kNumSamples - 1);
+
+    engine.process (split.makeBusBuffers(), midi, kNumSamples);
+
+    REQUIRE (sink.numEvents == 3);
+
+    for (int bus = 0; bus < kNumOutputBuses; ++bus)
+        for (int i = 0; i < jmin (kNumSamples, 4096); ++i)
+            REQUIRE (split.buffers[bus].getSample (0, i) == Catch::Approx (reference.buffers[bus].getSample (0, i)).margin (1.0e-6f));
 }
 
 TEST_CASE ("test tone phase is continuous across blocks")
@@ -294,7 +445,7 @@ TEST_CASE ("test tone phase is continuous across blocks")
     BusFixture reference;
     SynthEngine referenceEngine;
     referenceEngine.prepare (kSampleRate, kNumSamples);
-    referenceEngine.process (reference.makeBusBuffers(), kNumSamples);
+    referenceEngine.process (reference.makeBusBuffers(), MidiBuffer(), kNumSamples);
 
     AudioBuffer<float> firstHalf (2, kHalfSamples);
     AudioBuffer<float> secondHalf (2, kHalfSamples);
@@ -305,11 +456,11 @@ TEST_CASE ("test tone phase is continuous across blocks")
     BusBuffers buses;
     buses.l[0] = firstHalf.getWritePointer (0);
     buses.r[0] = firstHalf.getWritePointer (1);
-    engine.process (buses, kHalfSamples);
+    engine.process (buses, MidiBuffer(), kHalfSamples);
 
     buses.l[0] = secondHalf.getWritePointer (0);
     buses.r[0] = secondHalf.getWritePointer (1);
-    engine.process (buses, kHalfSamples);
+    engine.process (buses, MidiBuffer(), kHalfSamples);
 
     for (int i = 0; i < kHalfSamples; ++i)
     {
@@ -323,7 +474,7 @@ TEST_CASE ("render test tone wavs", "[.wav]")
     BusFixture fixture;
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
-    engine.process (fixture.makeBusBuffers(), kNumSamples);
+    engine.process (fixture.makeBusBuffers(), MidiBuffer(), kNumSamples);
 
     const char* const names[3] { "main", "out1", "out2" };
     WavAudioFormat format;
