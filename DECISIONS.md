@@ -99,7 +99,8 @@
 - 日期：2026-09-23
 - 状态：已批准（M0-07 设计批准，人类）
 - 决策：
-  1. **日志**：`MyJVLog` 引用计数 `FileLogger`（`userApplicationData/myJV/logs/myJV.log`，1 MB 轮转）；仅消息线程初始化/关闭；仅非 RT 路径写日志。
-  2. **崩溃报告**：Windows 下安装 `SetUnhandledExceptionFilter`（幂等；**链式调用原处理器**，不破坏宿主行为），写文本报告 + minidump（DbgHelp，`#pragma comment(lib)`，不改 CMake 链接）；非 Windows no-op。
-- 理由：JUCE 8 已移除 `CrashHandler`；RT 路径禁止日志（计划 7.4）；链式保证宿主自身崩溃处理不被覆盖。
+  1. **日志**：`MyJVLog` 引用计数 `FileLogger`（`userApplicationData/myJV/logs/myJV.log`）；**每次 `initialise()` 时将文件裁剪至 ≤1 MB（JUCE 行为），会话期间不做运行中轮转**；初始化时保存并在关闭时恢复宿主原有 `Logger`（尽力而为）；仅消息线程初始化/关闭；仅非 RT 路径写日志。
+  2. **崩溃报告**：Windows 下安装 `SetUnhandledExceptionFilter`（`std::atomic` 幂等、线程安全；**链式调用原处理器**；模块卸载时尽力恢复原处理器），写文本报告 + minidump（DbgHelp，`#pragma comment(lib, "DbgHelp.lib")`，MSVC 专属；其他工具链需自行链接 dbghelp）；转储失败在报告中注明；含重入保护；非 Windows no-op。
+- 理由：JUCE 8 已移除 `CrashHandler`；RT 路径禁止日志（计划 7.4）；链式与卸载恢复尽力避免影响宿主。
+- 残留限制：无法枚举/检测其后第三方安装的处理器；进程内捕获对严重崩溃（栈溢出/堆损坏）不可靠，必要时后续引入外部崩溃捕获（M6 评估）。
 - 影响：日志与转储位于 `%APPDATA%/myJV/logs/`；`processBlock` 等 RT 路径不得调用 `MyJVLog`（扫描证据见 `REVIEWS/M0-07/rt-logging-scan.txt`）。

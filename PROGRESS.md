@@ -75,4 +75,6 @@
 - 决策：ADR-012（诊断基础设施；RT 路径禁止日志）
 - 结果：29 用例 / 60603 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；冒烟后真实生成 `%APPDATA%\myJV\logs\myJV.log`（含 `[INFO] processor created: 0.1.0`）；RT 无日志扫描 0 匹配
 - 变异抽查：崩溃报告省略版本字段 → 1 断言失败（已恢复）
+- 终审（AI 交叉审查）：0 Critical / 4 Important / 7 Minor；Important 已修复（日志轮转表述改为"initialise 时裁剪"；异常过滤器卸载恢复；宿主 logger 保存/恢复；`install()` 原子幂等防自链）；Minor 修复（重入/空指针防御、转储失败上报、未配对关闭守卫、头文件契约、RT 扫描加宽）
+- 最终验证：30 用例 / 60604 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning
 - 状态：In Review（R2，待人类审查）
