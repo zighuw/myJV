@@ -1,10 +1,22 @@
 #include "MyJVProcessor.h"
+
 #include "Params/ParameterIDs.h"
+#include "Plugin/MyJVCrashHandler.h"
+#include "Plugin/MyJVLog.h"
 
 MyJVProcessor::MyJVProcessor()
     : juce::AudioProcessor (createBuses()),
       apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
+    MyJVLog::initialise (MyJVLog::defaultLogDirectory());
+    MyJVCrashHandler::install (JucePlugin_VersionString);
+    MyJVLog::logInfo ("processor created: " + juce::String (JucePlugin_VersionString));
+}
+
+MyJVProcessor::~MyJVProcessor()
+{
+    MyJVLog::logInfo ("processor destroyed");
+    MyJVLog::shutdown();
 }
 
 void MyJVProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)

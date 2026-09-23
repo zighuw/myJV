@@ -16,7 +16,9 @@ FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
     Source/Engine/SynthEngine.cpp
-    Source/Params/ParameterLayout.cpp)
+    Source/Params/ParameterLayout.cpp
+    Source/Plugin/MyJVCrashHandler.cpp
+    Source/Plugin/MyJVLog.cpp)
 
 juce_add_plugin(myJV
     COMPANY_NAME "myJV"
@@ -65,6 +67,7 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(Catch2)
 
     add_executable(myJV_tests
+        Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
         Tests/param_tests.cpp
         Tests/test_main.cpp

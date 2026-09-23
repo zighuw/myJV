@@ -8,7 +8,7 @@ class MyJVProcessor final : public juce::AudioProcessor
 {
 public:
     MyJVProcessor();
-    ~MyJVProcessor() override = default;
+    ~MyJVProcessor() override;
 
     static BusesProperties createBuses()
     {
