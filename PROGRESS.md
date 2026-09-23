@@ -11,7 +11,7 @@
 | M0-02 目录与模块骨架 | Done | 2026-09-20 会话 2 | [evidence](REVIEWS/M0-02/evidence.md) | R2 | 构建结构转 M0-03（ADR-008）；头文件加入 `target_sources` 转 M0-06 |
 | M0-03 APVTS 参数框架 | Done | 2026-09-20 会话 3 | [evidence](REVIEWS/M0-03/evidence.md) | R2 | 参数假设待裁决（M4-08：默认值/选项命名/ID 命名/控制深度范围） |
 | M0-04 引擎空壳 + BusBuffers + 测试音 | Done | 2026-09-20 会话 4 | [evidence](REVIEWS/M0-04/evidence.md) | R2 | 临时测试音待 M1-04 移除（ADR-010）；ASan/UBSan 随 M0-06 |
-| M0-05 MIDI 子块切分框架 | In Review | 2026-09-22 会话 5 | [evidence](REVIEWS/M0-05/evidence.md) | R2 | 事件处理为框架（Note/Voice 于 M3 接入）；ASan 随 M0-06 |
+| M0-05 MIDI 子块切分框架 | Done | 2026-09-22 会话 5 | [evidence](REVIEWS/M0-05/evidence.md) | R2 | 事件处理为框架（Note/Voice 于 M3 接入）；ASan 随 M0-06 |
 | M0-06 CI 流水线 | Backlog | — | — | R2 | — |
 | M0-07 日志/断言/崩溃报告基础设施 | Backlog | — | — | R1 | — |
 
@@ -67,3 +67,4 @@
 - 变异抽查：分发位置固定 0 → 3 断言失败（等价变异被正确放行）
 - 终审（AI 交叉审查）：0 Critical / 2 Important / 7 Minor；Important 已修复（sink 改 `std::atomic` release/acquire；音频一致性改为全块逐采样最大差）；Minor 修复（前向声明、ADR-011、越界对照/负位置/sink 清空用例、日志头注）；流程记录：本会话实现与测试同批完成（非严格先失败测试），以变异抽查补偿
 - 状态：In Review（R2，待人类审查）
+- 收口（2026-09-22）：人类合并至 main（`a592715`，快速合并；本任务证据为单元测试输出，无附加截图）→ Done
