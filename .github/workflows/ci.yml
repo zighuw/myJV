@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -49,6 +49,7 @@ jobs:
       - name: Configure (macOS and Linux)
         if: runner.os != 'Windows'
         run: |
+          set +e
           set -o pipefail
           cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee configure.log
           status=$?
@@ -84,6 +85,7 @@ jobs:
 
       - name: Configure
         run: |
+          set +e
           set -o pipefail
           cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
@@ -136,6 +138,7 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
+          set +e
           set -o pipefail
           cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee configure.log
           status=$?
