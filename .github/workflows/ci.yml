@@ -37,11 +37,26 @@ jobs:
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 2>&1 | Tee-Object -FilePath configure.log
+          if ($LASTEXITCODE -ne 0) {
+            $message = (Get-Content configure.log -Tail 30 | ForEach-Object { $_ -replace '%', '%25' }) -join '%0A'
+            Write-Host "::error title=Configure failed::$message"
+            exit 1
+          }
 
       - name: Configure (macOS and Linux)
         if: runner.os != 'Windows'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          set -o pipefail
+          cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee configure.log
+          status=$?
+          if [ $status -ne 0 ]; then
+            message=$(tail -n 30 configure.log | awk '{gsub(/%/,"%25"); printf "%s%%0A", $0}')
+            echo "::error title=Configure failed::$message"
+            exit $status
+          fi
 
       - name: Build
         run: cmake --build build --config Release
@@ -68,11 +83,18 @@ jobs:
           key: deps-Linux-clang-${{ hashFiles('CMakeLists.txt') }}
 
       - name: Configure
-        run: >
-          cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
-          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+        run: |
+          set -o pipefail
+          cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined" 2>&1 | tee configure.log
+          status=$?
+          if [ $status -ne 0 ]; then
+            message=$(tail -n 30 configure.log | awk '{gsub(/%/,"%25"); printf "%s%%0A", $0}')
+            echo "::error title=Configure failed::$message"
+            exit $status
+          fi
 
       - name: Build tests
         run: cmake --build build --config RelWithDebInfo --target myJV_tests
@@ -102,11 +124,26 @@ jobs:
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 2>&1 | Tee-Object -FilePath configure.log
+          if ($LASTEXITCODE -ne 0) {
+            $message = (Get-Content configure.log -Tail 30 | ForEach-Object { $_ -replace '%', '%25' }) -join '%0A'
+            Write-Host "::error title=Configure failed::$message"
+            exit 1
+          }
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          set -o pipefail
+          cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee configure.log
+          status=$?
+          if [ $status -ne 0 ]; then
+            message=$(tail -n 30 configure.log | awk '{gsub(/%/,"%25"); printf "%s%%0A", $0}')
+            echo "::error title=Configure failed::$message"
+            exit $status
+          fi
 
       - name: Build VST3
         run: cmake --build build --config Release --target myJV_VST3
