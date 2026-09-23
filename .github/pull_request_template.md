@@ -9,6 +9,7 @@
 
 ## 证据（本地 `REVIEWS/<任务ID>/` 归档）
 
+- 证据包：`REVIEWS/<任务ID>/evidence.md`
 - [ ] 构建日志（0 error / 0 warning）
 - [ ] 测试输出（用例数 / 断言数）
 - [ ] sanitizer / pluginval（如适用）
