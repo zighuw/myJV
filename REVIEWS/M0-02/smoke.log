@@ -1,3 +1,0 @@
-﻿SMOKE TEST 2026-09-20 01:01:49
-command: Start-Process build\myJV_artefacts\Release\Standalone\myJV.exe; wait 5s; check HasExited; Stop-Process -Force
-result: ALIVE after 5s (pid=13800)
