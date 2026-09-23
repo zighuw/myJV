@@ -93,3 +93,13 @@
 - 理由：`juce::MidiMessage` 的长消息构造会堆分配（3 字节通道消息使用内联存储，>8 字节才分配），RT 路径不可逐事件构造；虚调用本身无分配。
 - 契约：`event.data` 仅在回调期间有效，处理器不得跨回调持有；实现不得在 `handleMidiEvent` 内分配/加锁。
 - 影响：M3-01 的 `VoiceManager` 将实现该接口；若需跨块保留事件，必须复制到预分配缓冲。
+
+## ADR-012：诊断基础设施（日志 + 崩溃报告，M0-07）
+
+- 日期：2026-09-23
+- 状态：已批准（M0-07 设计批准，人类）
+- 决策：
+  1. **日志**：`MyJVLog` 引用计数 `FileLogger`（`userApplicationData/myJV/logs/myJV.log`，1 MB 轮转）；仅消息线程初始化/关闭；仅非 RT 路径写日志。
+  2. **崩溃报告**：Windows 下安装 `SetUnhandledExceptionFilter`（幂等；**链式调用原处理器**，不破坏宿主行为），写文本报告 + minidump（DbgHelp，`#pragma comment(lib)`，不改 CMake 链接）；非 Windows no-op。
+- 理由：JUCE 8 已移除 `CrashHandler`；RT 路径禁止日志（计划 7.4）；链式保证宿主自身崩溃处理不被覆盖。
+- 影响：日志与转储位于 `%APPDATA%/myJV/logs/`；`processBlock` 等 RT 路径不得调用 `MyJVLog`（扫描证据见 `REVIEWS/M0-07/rt-logging-scan.txt`）。

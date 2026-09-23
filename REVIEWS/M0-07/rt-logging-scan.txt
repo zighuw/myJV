@@ -1,0 +1,21 @@
+﻿# myJV RT 路径日志扫描（M0-07）
+
+- 日期：2026-09-23
+- 命令：`Get-ChildItem Source/Engine,Source/DSP,Source/Model,Source/Params -Recurse -Include *.h,*.cpp | Select-String -Pattern "Logger|writeToLog|logInfo|logWarning|logError|std::cout|printf|std::ofstream|FileOutputStream"`
+- 模式集：日志调用、标准输出、文件输出流
+
+## RT 模块（Source/Engine、Source/DSP、Source/Model、Source/Params）
+
+结果：**(no matches)** —— 无任何日志/IO 调用。
+
+## MyJVProcessor.cpp 中日志调用位置
+
+```
+11: MyJVLog::initialise (MyJVLog::defaultLogDirectory());
+12: MyJVCrashHandler::install (JucePlugin_VersionString);
+13: MyJVLog::logInfo ("processor created: " + juce::String (JucePlugin_VersionString));
+18: MyJVLog::logInfo ("processor destroyed");
+19: MyJVLog::shutdown();
+```
+
+结果：日志/初始化调用仅出现在构造（11–13）与析构（18–19），**`processBlock`（`// RT-safe`）内无日志**。

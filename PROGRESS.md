@@ -13,7 +13,7 @@
 | M0-04 引擎空壳 + BusBuffers + 测试音 | Done | 2026-09-20 会话 4 | [evidence](REVIEWS/M0-04/evidence.md) | R2 | 临时测试音待 M1-04 移除（ADR-010）；ASan/UBSan 随 M0-06 |
 | M0-05 MIDI 子块切分框架 | Done | 2026-09-22 会话 5 | [evidence](REVIEWS/M0-05/evidence.md) | R2 | 事件处理为框架（Note/Voice 于 M3 接入）；ASan 随 M0-06 |
 | M0-06 CI 流水线 | Backlog | — | — | R2 | — |
-| M0-07 日志/断言/崩溃报告基础设施 | Backlog | — | — | R1 | — |
+| M0-07 日志/断言/崩溃报告基础设施 | In Review | 2026-09-23 会话 6 | [evidence](REVIEWS/M0-07/evidence.md) | R2 | 崩溃处理器真实触发验证待 M0-06/M6；ASan 随 M0-06 |
 
 ## 会话记录
 
@@ -68,3 +68,11 @@
 - 终审（AI 交叉审查）：0 Critical / 2 Important / 7 Minor；Important 已修复（sink 改 `std::atomic` release/acquire；音频一致性改为全块逐采样最大差）；Minor 修复（前向声明、ADR-011、越界对照/负位置/sink 清空用例、日志头注）；流程记录：本会话实现与测试同批完成（非严格先失败测试），以变异抽查补偿
 - 状态：In Review（R2，待人类审查）
 - 收口（2026-09-22）：人类合并至 main（`a592715`，快速合并；本任务证据为单元测试输出，无附加截图）→ Done
+
+### 2026-09-23 会话 6（M0-07）
+
+- 范围：日志（引用计数 FileLogger）+ 断言策略 + 崩溃报告（文本 + minidump，链式调用原处理器）
+- 决策：ADR-012（诊断基础设施；RT 路径禁止日志）
+- 结果：29 用例 / 60603 断言全绿；ctest 1/1；清空全量重建 0 error / 0 warning；冒烟后真实生成 `%APPDATA%\myJV\logs\myJV.log`（含 `[INFO] processor created: 0.1.0`）；RT 无日志扫描 0 匹配
+- 变异抽查：崩溃报告省略版本字段 → 1 断言失败（已恢复）
+- 状态：In Review（R2，待人类审查）
