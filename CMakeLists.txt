@@ -47,7 +47,9 @@ endif()
 
 target_compile_definitions(myJV
     PUBLIC
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0)
 
 target_link_libraries(myJV
     PRIVATE
@@ -83,7 +85,9 @@ if(BUILD_TESTING)
 
     target_compile_definitions(myJV_tests
         PRIVATE
-            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0)
 
     target_link_libraries(myJV_tests
         PRIVATE
