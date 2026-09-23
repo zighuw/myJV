@@ -7,3 +7,10 @@ CMakeUserPresets.json
 # Editor backups
 *~
 *.un~
+
+REVIEWS/
+skills/
+Docs/
+AGENTS.md
+PROGRESS.md
+DECISIONS.md
