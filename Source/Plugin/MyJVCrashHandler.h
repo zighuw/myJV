@@ -14,5 +14,8 @@ struct CrashInfo
 
 juce::File writeCrashReport (const CrashInfo& info, const juce::File& directory);
 
+// Idempotent and safe to call from any thread. Windows: installs a process-wide
+// unhandled-exception filter that chains to the previously installed filter and is
+// best-effort restored when the module unloads. Other platforms: no-op.
 void install (const juce::String& version);
 }

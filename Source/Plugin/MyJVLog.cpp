@@ -1,9 +1,12 @@
 #include "MyJVLog.h"
 
+#include <atomic>
+
 namespace
 {
-int initialisationCount = 0;
+std::atomic<int> initialisationCount { 0 };
 std::unique_ptr<juce::FileLogger> fileLogger;
+juce::Logger* previousLogger = nullptr;
 
 constexpr juce::int64 kMaxLogFileSizeBytes = 1024 * 1024;
 }
@@ -19,18 +22,17 @@ juce::File defaultLogDirectory()
 
 void initialise (const juce::File& directory)
 {
-    jassert (initialisationCount >= 0);
+    if (initialisationCount.fetch_add (1, std::memory_order_acq_rel) != 0)
+        return;
 
-    if (initialisationCount++ == 0)
-    {
-        directory.createDirectory();
+    previousLogger = juce::Logger::getCurrentLogger();
+    directory.createDirectory();
 
-        fileLogger = std::make_unique<juce::FileLogger> (directory.getChildFile ("myJV.log"),
-                                                          "myJV log",
-                                                          kMaxLogFileSizeBytes);
+    fileLogger = std::make_unique<juce::FileLogger> (directory.getChildFile ("myJV.log"),
+                                                      "myJV log",
+                                                      kMaxLogFileSizeBytes);
 
-        juce::Logger::setCurrentLogger (fileLogger.get());
-    }
+    juce::Logger::setCurrentLogger (fileLogger.get());
 }
 
 void initialise()
@@ -40,11 +42,15 @@ void initialise()
 
 void shutdown()
 {
-    jassert (initialisationCount > 0);
+    const auto count = initialisationCount.load (std::memory_order_acquire);
 
-    if (--initialisationCount == 0)
+    if (count <= 0)
+        return;
+
+    if (initialisationCount.fetch_sub (1, std::memory_order_acq_rel) == 1)
     {
-        juce::Logger::setCurrentLogger (nullptr);
+        juce::Logger::setCurrentLogger (previousLogger);
+        previousLogger = nullptr;
         fileLogger.reset();
     }
 }

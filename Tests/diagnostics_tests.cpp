@@ -30,9 +30,22 @@ TEST_CASE ("log initialisation creates and writes the log file")
     REQUIRE (logFile.existsAsFile());
 
     const auto text = logFile.loadFileAsString();
-    REQUIRE (text.contains ("hello diagnostics"));
+    REQUIRE (text.contains ("[INFO] hello diagnostics"));
     REQUIRE (text.contains ("[WARN] warning diagnostics"));
     REQUIRE (text.contains ("[ERROR] error diagnostics"));
+}
+
+TEST_CASE ("unmatched log shutdown is ignored")
+{
+    const auto directory = makeTestDirectory();
+
+    MyJVLog::shutdown();
+
+    MyJVLog::initialise (directory);
+    MyJVLog::logInfo ("after stray shutdown");
+    MyJVLog::shutdown();
+
+    REQUIRE (directory.getChildFile ("myJV.log").loadFileAsString().contains ("after stray shutdown"));
 }
 
 TEST_CASE ("log initialisation is reference counted")
