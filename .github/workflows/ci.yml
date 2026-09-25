@@ -1,0 +1,203 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLUGINVAL_VERSION: v1.0.4
+  PLUGINVAL_WINDOWS_SHA256: C08E61CE3B96DB41636F8EC7E76F4C7E2C13EBDAC7FA1B5A1F52B4F32EC715AB
+  PLUGINVAL_MACOS_SHA256: 3C4C533BDA0C5059EEA3DDAEA752D757EE2025041F0F47E6BCB0E87F6082B29F
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/_deps
+          key: deps-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/ci-run.ps1 -Label Configure -Log configure.log -Command "cmake -B build -A x64"
+
+      - name: Configure (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: bash ./.github/scripts/ci-run.sh Configure configure.log cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/ci-run.ps1 -Label Build -Log build.log -Command "cmake --build build --config Release"
+
+      - name: Build (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: bash ./.github/scripts/ci-run.sh Build build.log cmake --build build --config Release
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/ci-run.ps1 -Label Test -Log test.log -Command "ctest --test-dir build -C Release --output-on-failure"
+
+      - name: Test (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: bash ./.github/scripts/ci-run.sh Test test.log ctest --test-dir build -C Release --output-on-failure
+
+  debug-build:
+    name: Debug build and test (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/_deps
+          key: deps-Linux-debug-${{ hashFiles('**/CMakeLists.txt') }}
+
+      - name: Configure
+        run: bash ./.github/scripts/ci-run.sh Configure configure.log cmake -B build -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build tests
+        run: bash ./.github/scripts/ci-run.sh Build build.log cmake --build build --config Debug --target myJV_tests
+
+      - name: Test
+        run: bash ./.github/scripts/ci-run.sh Test test.log ctest --test-dir build -C Debug --output-on-failure
+
+  sanitizers:
+    name: ASan and UBSan (Linux, Clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/_deps
+          key: deps-Linux-clang-${{ hashFiles('**/CMakeLists.txt') }}
+
+      - name: Configure
+        run: bash ./.github/scripts/ci-run.sh Configure configure.log cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+
+      - name: Build tests
+        run: bash ./.github/scripts/ci-run.sh Build build.log cmake --build build --config RelWithDebInfo --target myJV_tests
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: bash ./.github/scripts/ci-run.sh Test test.log ctest --test-dir build -C RelWithDebInfo --output-on-failure
+
+  pluginval:
+    name: pluginval (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/_deps
+          key: deps-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/ci-run.ps1 -Label Configure -Log configure.log -Command "cmake -B build -A x64"
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: bash ./.github/scripts/ci-run.sh Configure configure.log cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/ci-run.ps1 -Label "Build VST3" -Log build.log -Command "cmake --build build --config Release --target myJV_VST3"
+
+      - name: Build VST3 (macOS)
+        if: runner.os == 'macOS'
+        run: bash ./.github/scripts/ci-run.sh "Build VST3" build.log cmake --build build --config Release --target myJV_VST3
+
+      - name: Download pluginval (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/$env:PLUGINVAL_VERSION/pluginval_Windows.zip" -OutFile pluginval.zip
+          $hash = (Get-FileHash pluginval.zip -Algorithm SHA256).Hash
+          if ($hash -ne $env:PLUGINVAL_WINDOWS_SHA256) { throw "pluginval zip hash mismatch: $hash" }
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          New-Item -ItemType Directory -Force -Path pluginval-logs | Out-Null
+
+      - name: Download pluginval (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -L -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/$PLUGINVAL_VERSION/pluginval_macOS.zip"
+          echo "$PLUGINVAL_MACOS_SHA256  pluginval.zip" | shasum -a 256 -c -
+          unzip -q pluginval.zip -d pluginval
+          mkdir -p pluginval-logs
+
+      - name: Run pluginval (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pluginval = (Get-ChildItem -Path pluginval -Recurse -Filter pluginval.exe | Select-Object -First 1).FullName
+          ./.github/scripts/ci-run.ps1 -Label pluginval -Log pluginval.log -Command "$pluginval --strictness-level 5 --skip-gui-tests --output-dir pluginval-logs --validate build/myJV_artefacts/Release/VST3/myJV.vst3"
+
+      - name: Run pluginval (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          PLUGINVAL=$(find pluginval -name pluginval -type f -perm -u+x | head -n 1)
+          bash ./.github/scripts/ci-run.sh pluginval pluginval.log "$PLUGINVAL" --strictness-level 5 --skip-gui-tests --output-dir pluginval-logs --validate "build/myJV_artefacts/Release/VST3/myJV.vst3"
+
+      - name: Upload pluginval logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pluginval-logs-${{ runner.os }}-${{ github.run_attempt }}
+          path: pluginval-logs
+          if-no-files-found: ignore

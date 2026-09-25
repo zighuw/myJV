@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(myJV VERSION 0.1.0 LANGUAGES CXX)
+project(myJV VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,39 @@ set(MYJV_CORE_SOURCES
     Source/Plugin/MyJVCrashHandler.cpp
     Source/Plugin/MyJVLog.cpp)
 
+set(MYJV_SOURCE_HEADERS
+    Source/DSP/Biquad.h
+    Source/DSP/Booster.h
+    Source/DSP/DeterministicRandom.h
+    Source/DSP/Envelope.h
+    Source/DSP/FXM.h
+    Source/DSP/LFO.h
+    Source/DSP/RingMod.h
+    Source/DSP/SVF.h
+    Source/DSP/SamplePlayer.h
+    Source/DSP/Smoother.h
+    Source/Engine/AssetReclaimer.h
+    Source/Engine/ModulationMatrix.h
+    Source/Engine/Note.h
+    Source/Engine/SynthEngine.h
+    Source/Engine/TonePairProcessor.h
+    Source/Engine/ToneVoice.h
+    Source/Engine/VoiceManager.h
+    Source/IO/LibraryIndex.h
+    Source/IO/PatchSerializer.h
+    Source/IO/SampleImporter.h
+    Source/Model/Patch.h
+    Source/Model/Sample.h
+    Source/Model/SampleLibrary.h
+    Source/Model/Tone.h
+    Source/Model/ZoneSet.h
+    Source/Params/Calibration.h
+    Source/Params/ParamSnapshot.h
+    Source/Params/ParameterIDs.h
+    Source/Plugin/MyJVCrashHandler.h
+    Source/Plugin/MyJVLog.h
+    Source/Plugin/MyJVProcessor.h)
+
 juce_add_plugin(myJV
     COMPANY_NAME "myJV"
     BUNDLE_ID "com.myjv.synth"
@@ -35,6 +68,7 @@ juce_add_plugin(myJV
 
 target_sources(myJV PRIVATE
     ${MYJV_CORE_SOURCES}
+    ${MYJV_SOURCE_HEADERS}
     Source/Plugin/MyJVProcessor.cpp)
 
 target_include_directories(myJV PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
@@ -47,7 +81,9 @@ endif()
 
 target_compile_definitions(myJV
     PUBLIC
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0)
 
 target_link_libraries(myJV
     PRIVATE
@@ -71,7 +107,8 @@ if(BUILD_TESTING)
         Tests/engine_tests.cpp
         Tests/param_tests.cpp
         Tests/test_main.cpp
-        ${MYJV_CORE_SOURCES})
+        ${MYJV_CORE_SOURCES}
+        ${MYJV_SOURCE_HEADERS})
 
     target_include_directories(myJV_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 
@@ -83,7 +120,9 @@ if(BUILD_TESTING)
 
     target_compile_definitions(myJV_tests
         PRIVATE
-            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0)
 
     target_link_libraries(myJV_tests
         PRIVATE
