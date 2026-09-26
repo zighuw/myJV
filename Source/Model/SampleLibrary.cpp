@@ -8,19 +8,6 @@
 
 namespace
 {
-constexpr const char* kSupportedExtensions[] { ".wav", ".aif", ".aiff", ".flac" };
-
-bool isSupportedAudioFile (const juce::String& fileName)
-{
-    const auto extension = fileName.fromLastOccurrenceOf (".", true, false).toLowerCase();
-
-    for (const auto* supported : kSupportedExtensions)
-        if (extension == supported)
-            return true;
-
-    return false;
-}
-
 std::string normalisedRelativePath (const juce::File& root, const juce::File& file)
 {
     return file.getRelativePathFrom (root).replaceCharacter ('\\', '/').toStdString();
@@ -36,6 +23,43 @@ struct ScanOutcome
     ScanResult result;
     std::vector<LibraryEntry> entries;
 };
+
+int removeOrphanedThumbnails (const juce::File& root, const std::vector<LibraryEntry>& entries,
+                              double minimumAgeSeconds)
+{
+    const auto directory = root.getChildFile (kThumbnailsDirectoryName);
+
+    if (! directory.isDirectory())
+        return 0;
+
+    std::set<juce::String> referenced;
+
+    for (const auto& entry : entries)
+        if (! entry.thumbnailPath.empty())
+            referenced.insert (juce::String (entry.thumbnailPath).replaceCharacter ('\\', '/'));
+
+    const auto now = juce::Time::getCurrentTime();
+    int removed = 0;
+
+    for (const auto& file : directory.findChildFiles (juce::File::findFiles, false, "*"))
+    {
+        if (! file.hasFileExtension (".png"))
+            continue;
+
+        const auto relative = file.getRelativePathFrom (root).replaceCharacter ('\\', '/');
+
+        if (referenced.count (relative) != 0)
+            continue;
+
+        if ((now - file.getLastModificationTime()).inSeconds() < minimumAgeSeconds)
+            continue;
+
+        if (file.deleteFile())
+            ++removed;
+    }
+
+    return removed;
+}
 
 ScanOutcome performScan (const juce::File& root,
                          std::vector<LibraryEntry> existingEntries,
@@ -130,6 +154,8 @@ ScanOutcome performScan (const juce::File& root,
     for (const auto& entry : kept)
         if (! root.getChildFile (juce::String (entry.relativePath)).existsAsFile())
             outcome.result.missingPaths.push_back (entry.relativePath);
+
+    outcome.result.thumbnailsRemoved = removeOrphanedThumbnails (root, kept, kThumbnailOrphanGraceSeconds);
 
     outcome.entries = std::move (kept);
     outcome.result.succeeded = true;
@@ -229,6 +255,13 @@ ScanResult SampleLibrary::scanNow()
     auto outcome = performScan (rootDirectory, entries, nullptr);
     entries = std::move (outcome.entries);
     return outcome.result;
+}
+
+int SampleLibrary::cleanupOrphanedThumbnails (double minimumAgeSeconds)
+{
+    jassert (juce::MessageManager::existsAndIsCurrentThread());
+
+    return removeOrphanedThumbnails (rootDirectory, entries, juce::jmax (0.0, minimumAgeSeconds));
 }
 
 void SampleLibrary::startScan()
