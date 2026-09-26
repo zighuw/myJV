@@ -18,8 +18,6 @@ using BusesLayout = AudioProcessor::BusesLayout;
 
 constexpr double kSampleRate = 48000.0;
 constexpr int kNumSamples = 48000;
-constexpr double kExpectedFrequencies[3] { 440.0, 660.0, 880.0 };
-constexpr float kTestToneLevel = 0.1f;
 
 struct BusFixture
 {
@@ -32,15 +30,12 @@ struct BusFixture
         }
     }
 
-    BusBuffers makeBusBuffers (bool includeAuxiliaryBuses = true)
+    BusBuffers makeBusBuffers()
     {
         BusBuffers buses;
 
         for (int bus = 0; bus < kNumOutputBuses; ++bus)
         {
-            if (! includeAuxiliaryBuses && bus > 0)
-                continue;
-
             buses.l[bus] = buffers[bus].getWritePointer (0);
             buses.r[bus] = buffers[bus].getWritePointer (1);
         }
@@ -50,6 +45,12 @@ struct BusFixture
 
     AudioBuffer<float> buffers[kNumOutputBuses];
 };
+
+void fillBuffer (AudioBuffer<float>& buffer, float value)
+{
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        FloatVectorOperations::fill (buffer.getWritePointer (channel), value, buffer.getNumSamples());
+}
 
 class BusTestProcessor final : public AudioProcessor
 {
@@ -119,24 +120,6 @@ public:
     Event events[maxEvents];
     int numEvents = 0;
 };
-
-double measureFrequency (const AudioBuffer<float>& buffer, double sampleRate, int channel = 0)
-{
-    const auto* data = buffer.getReadPointer (channel);
-    const auto numSamples = buffer.getNumSamples();
-    int risingCrossings = 0;
-
-    for (int i = 1; i < numSamples; ++i)
-        if (data[i - 1] <= 0.0f && data[i] > 0.0f)
-            ++risingCrossings;
-
-    return risingCrossings * sampleRate / numSamples;
-}
-
-float expectedRms()
-{
-    return kTestToneLevel / std::sqrt (2.0f);
-}
 }
 
 TEST_CASE ("plugin exposes three stereo output buses")
@@ -221,26 +204,29 @@ TEST_CASE ("bus buffer mapping follows the enabled output buses")
     }
 }
 
-TEST_CASE ("engine renders into the mapped buses of a disabled-aux layout")
+TEST_CASE ("engine clears the mapped buses of a disabled-aux layout")
 {
     BusTestProcessor processor;
     REQUIRE (processor.setBusesLayout (makeLayout (AudioChannelSet::stereo(), AudioChannelSet::disabled(), AudioChannelSet::stereo())));
 
     AudioBuffer<float> buffer (4, kNumSamples);
-    buffer.clear();
+    fillBuffer (buffer, 1.0f);
 
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
     engine.process (MyJVProcessor::buildBusBuffers (processor, buffer), MidiBuffer(), kNumSamples);
 
-    REQUIRE (measureFrequency (buffer, kSampleRate, 0) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
-    REQUIRE (measureFrequency (buffer, kSampleRate, 2) == Catch::Approx (kExpectedFrequencies[2]).margin (2.0));
-    REQUIRE (measureFrequency (buffer, kSampleRate, 2) != Catch::Approx (kExpectedFrequencies[1]).margin (2.0));
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        CHECK (buffer.getMagnitude (channel, 0, kNumSamples) == 0.0f);
 }
 
-TEST_CASE ("engine renders the test tone on each bus")
+TEST_CASE ("engine clears every output bus")
 {
     BusFixture fixture;
+
+    for (auto& buffer : fixture.buffers)
+        fillBuffer (buffer, 1.0f);
+
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
 
@@ -249,40 +235,9 @@ TEST_CASE ("engine renders the test tone on each bus")
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
     {
         INFO ("bus " << bus);
-
-        REQUIRE (measureFrequency (fixture.buffers[bus], kSampleRate) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0));
-        REQUIRE (fixture.buffers[bus].getRMSLevel (0, 0, kNumSamples) == Catch::Approx (expectedRms()).margin (0.002f));
-
-        for (int i = 0; i < jmin (kNumSamples, 1024); ++i)
-            REQUIRE (fixture.buffers[bus].getSample (0, i) == fixture.buffers[bus].getSample (1, i));
+        CHECK (fixture.buffers[bus].getMagnitude (0, 0, kNumSamples) == 0.0f);
+        CHECK (fixture.buffers[bus].getMagnitude (1, 0, kNumSamples) == 0.0f);
     }
-}
-
-TEST_CASE ("test tone frequency is sample-rate independent")
-{
-    constexpr double kAlternateSampleRate = 44100.0;
-
-    BusFixture fixture;
-    SynthEngine engine;
-    engine.prepare (kAlternateSampleRate, kNumSamples);
-
-    engine.process (fixture.makeBusBuffers(), MidiBuffer(), kNumSamples);
-
-    for (int bus = 0; bus < kNumOutputBuses; ++bus)
-        REQUIRE (measureFrequency (fixture.buffers[bus], kAlternateSampleRate) == Catch::Approx (kExpectedFrequencies[bus]).margin (2.0));
-}
-
-TEST_CASE ("engine tolerates missing auxiliary buses")
-{
-    BusFixture fixture;
-    SynthEngine engine;
-    engine.prepare (kSampleRate, kNumSamples);
-
-    engine.process (fixture.makeBusBuffers (false), MidiBuffer(), kNumSamples);
-
-    REQUIRE (measureFrequency (fixture.buffers[0], kSampleRate) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
-    REQUIRE (fixture.buffers[1].getMagnitude (0, 0, kNumSamples) == 0.0f);
-    REQUIRE (fixture.buffers[2].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }
 
 TEST_CASE ("engine tolerates partially mapped buses")
@@ -429,7 +384,7 @@ TEST_CASE ("engine processes events without a configured sink")
 
     engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
 
-    REQUIRE (measureFrequency (fixture.buffers[0], kSampleRate) == Catch::Approx (kExpectedFrequencies[0]).margin (2.0));
+    REQUIRE (fixture.buffers[0].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }
 
 TEST_CASE ("midi events do not alter the rendered audio")
@@ -466,63 +421,22 @@ TEST_CASE ("midi events do not alter the rendered audio")
     }
 }
 
-TEST_CASE ("test tone phase is continuous across blocks")
-{
-    constexpr int kHalfSamples = kNumSamples / 2;
-
-    BusFixture reference;
-    SynthEngine referenceEngine;
-    referenceEngine.prepare (kSampleRate, kNumSamples);
-    referenceEngine.process (reference.makeBusBuffers(), MidiBuffer(), kNumSamples);
-
-    AudioBuffer<float> firstHalf (2, kHalfSamples);
-    AudioBuffer<float> secondHalf (2, kHalfSamples);
-
-    SynthEngine engine;
-    engine.prepare (kSampleRate, kNumSamples);
-
-    BusBuffers buses;
-    buses.l[0] = firstHalf.getWritePointer (0);
-    buses.r[0] = firstHalf.getWritePointer (1);
-    engine.process (buses, MidiBuffer(), kHalfSamples);
-
-    buses.l[0] = secondHalf.getWritePointer (0);
-    buses.r[0] = secondHalf.getWritePointer (1);
-    engine.process (buses, MidiBuffer(), kHalfSamples);
-
-    for (int i = 0; i < kHalfSamples; ++i)
-    {
-        REQUIRE (firstHalf.getSample (0, i) == Catch::Approx (reference.buffers[0].getSample (0, i)).margin (1.0e-6f));
-        REQUIRE (secondHalf.getSample (0, i) == Catch::Approx (reference.buffers[0].getSample (0, kHalfSamples + i)).margin (1.0e-6f));
-    }
-}
-
-TEST_CASE ("render test tone wavs", "[.wav]")
+TEST_CASE ("block splitting clears every segment")
 {
     BusFixture fixture;
+
+    for (auto& buffer : fixture.buffers)
+        fillBuffer (buffer, 1.0f);
+
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 0.5f), 100);
+    midi.addEvent (MidiMessage::noteOff (1, 60), 20000);
+    midi.addEvent (MidiMessage::controllerEvent (1, 1, 64), kNumSamples + 100);
+
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
-    engine.process (fixture.makeBusBuffers(), MidiBuffer(), kNumSamples);
-
-    const char* const names[3] { "main", "out1", "out2" };
-    WavAudioFormat format;
+    engine.process (fixture.makeBusBuffers(), midi, kNumSamples);
 
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
-    {
-        const auto path = File (String (MYJV_REPO_DIR) + "/REVIEWS/M0-04/test-tone-" + names[bus] + ".wav");
-
-        auto fileStream = path.createOutputStream();
-        REQUIRE (fileStream != nullptr);
-        REQUIRE (fileStream->openedOk());
-
-        std::unique_ptr<OutputStream> stream = std::move (fileStream);
-
-        auto writer = format.createWriterFor (stream, AudioFormatWriterOptions()
-                                                          .withSampleRate (kSampleRate)
-                                                          .withNumChannels (2)
-                                                          .withBitsPerSample (16));
-        REQUIRE (writer != nullptr);
-
-        REQUIRE (writer->writeFromAudioSampleBuffer (fixture.buffers[bus], 0, kNumSamples / 2));
-    }
+        CHECK (fixture.buffers[bus].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }

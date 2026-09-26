@@ -15,6 +15,7 @@ FetchContent_Declare(JUCE
 FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
+    Source/DSP/SamplePlayer.cpp
     Source/Engine/SynthEngine.cpp
     Source/IO/LibraryIndex.cpp
     Source/IO/SampleImporter.cpp
@@ -113,6 +114,7 @@ if(BUILD_TESTING)
         Tests/library_tests.cpp
         Tests/model_tests.cpp
         Tests/param_tests.cpp
+        Tests/sample_player_tests.cpp
         Tests/test_main.cpp
         ${MYJV_CORE_SOURCES}
         ${MYJV_SOURCE_HEADERS})
