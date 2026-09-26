@@ -180,9 +180,14 @@ TEST_CASE ("import uses defaults without root key or loop metadata")
 TEST_CASE ("import decodes flac files")
 {
     const auto directory = makeImportDirectory();
+
+    // Pre-generated fixture: writing FLAC in-process trips a UBSan report in
+    // JUCE's bundled libFLAC encoder, so the encoder stays out of test runs.
+    const auto fixture = File (MYJV_REPO_DIR).getChildFile ("Tests/Fixtures/Sine.flac");
+    REQUIRE (fixture.existsAsFile());
+
     const auto file = directory.getChildFile ("Pad.flac");
-    const auto signal = makeTestSignal (1, 96);
-    writeAudioFile (file, signal, 48000.0, {});
+    REQUIRE (fixture.copyFileTo (file));
 
     const auto result = SampleImporter::importFile (file, directory);
 
@@ -191,7 +196,7 @@ TEST_CASE ("import decodes flac files")
     CHECK (result.sample->sourceSampleRate == 48000.0);
     CHECK (result.sample->rootKey == 60);
     CHECK (result.sample->data.getNumSamples() == 96);
-    CHECK (maximumDifference (signal, result.sample->data) < 1.0e-3f);
+    CHECK (maximumDifference (makeTestSignal (1, 96), result.sample->data) < 1.0e-3f);
 }
 
 TEST_CASE ("import ignores invalid loop metadata")
