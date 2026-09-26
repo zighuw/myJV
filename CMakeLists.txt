@@ -16,6 +16,8 @@ FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
     Source/Engine/SynthEngine.cpp
+    Source/IO/LibraryIndex.cpp
+    Source/Model/SampleLibrary.cpp
     Source/Params/ParameterLayout.cpp
     Source/Plugin/MyJVCrashHandler.cpp
     Source/Plugin/MyJVLog.cpp)
@@ -88,6 +90,7 @@ target_compile_definitions(myJV
 target_link_libraries(myJV
     PRIVATE
         juce::juce_audio_utils
+        juce::juce_cryptography
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
@@ -105,6 +108,7 @@ if(BUILD_TESTING)
     add_executable(myJV_tests
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
+        Tests/library_tests.cpp
         Tests/model_tests.cpp
         Tests/param_tests.cpp
         Tests/test_main.cpp
@@ -123,13 +127,15 @@ if(BUILD_TESTING)
         PRIVATE
             MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
             JUCE_WEB_BROWSER=0
-            JUCE_USE_CURL=0)
+            JUCE_USE_CURL=0
+            JUCE_MODAL_LOOPS_PERMITTED=1)
 
     target_link_libraries(myJV_tests
         PRIVATE
             Catch2::Catch2
             juce::juce_audio_formats
             juce::juce_audio_processors
+            juce::juce_cryptography
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
