@@ -17,6 +17,7 @@ FetchContent_MakeAvailable(JUCE)
 set(MYJV_CORE_SOURCES
     Source/Engine/SynthEngine.cpp
     Source/IO/LibraryIndex.cpp
+    Source/IO/SampleImporter.cpp
     Source/Model/SampleLibrary.cpp
     Source/Params/ParameterLayout.cpp
     Source/Plugin/MyJVCrashHandler.cpp
@@ -108,6 +109,7 @@ if(BUILD_TESTING)
     add_executable(myJV_tests
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
+        Tests/importer_tests.cpp
         Tests/library_tests.cpp
         Tests/model_tests.cpp
         Tests/param_tests.cpp

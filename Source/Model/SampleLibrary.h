@@ -24,6 +24,26 @@ struct LibraryEntry
     std::string thumbnailPath;     // '/' separated, relative to the library root
 };
 
+inline constexpr const char* kThumbnailsDirectoryName = "thumbnails";
+
+// Import/scan whitelist (architecture 1.2: WAV/AIFF/FLAC).
+inline constexpr const char* kSupportedAudioExtensions[] { ".wav", ".aif", ".aiff", ".flac" };
+
+inline bool isSupportedAudioFile (const juce::String& fileName)
+{
+    const auto extension = fileName.fromLastOccurrenceOf (".", true, false).toLowerCase();
+
+    for (const auto* supported : kSupportedAudioExtensions)
+        if (extension == supported)
+            return true;
+
+    return false;
+}
+
+// Orphaned thumbnail files younger than this are kept so an in-flight import
+// cannot lose its just-written cache file to a concurrent scan.
+inline constexpr double kThumbnailOrphanGraceSeconds = 300.0;
+
 struct ScanResult
 {
     bool succeeded = false;
@@ -31,6 +51,7 @@ struct ScanResult
     int entriesAdded = 0;
     int entriesUpdated = 0;
     int duplicatesSkipped = 0;
+    int thumbnailsRemoved = 0;
     std::vector<std::string> missingPaths;
 };
 
@@ -57,8 +78,14 @@ public:
     const std::vector<LibraryEntry>& getEntries() const noexcept;
 
     // Message thread only; must not be called while a scan is in flight.
-    // Merges a synchronous scan into the index.
+    // Merges a synchronous scan into the index. Every successful scan also
+    // removes orphaned thumbnail files older than kThumbnailOrphanGraceSeconds.
     ScanResult scanNow();
+
+    // Message thread only; deletes thumbnail cache files that no entry
+    // references and that are at least minimumAgeSeconds old. Also runs
+    // automatically after each successful scan with the default grace period.
+    int cleanupOrphanedThumbnails (double minimumAgeSeconds = kThumbnailOrphanGraceSeconds);
 
     // Starts a background scan. A call while a scan is already in flight is
     // ignored. The result is applied on the message thread, then onScanComplete
