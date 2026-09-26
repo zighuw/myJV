@@ -418,7 +418,7 @@ TEST_CASE ("missing entries do not suppress a present duplicate file")
     CHECK (findEntry (library, "B.wav") != nullptr);
 }
 
-TEST_CASE ("scan stops at directory link cycles")
+TEST_CASE ("scan does not follow directory links")
 {
     const auto directory = makeLibraryDirectory();
     writeFile (directory, "A.wav", "abc");

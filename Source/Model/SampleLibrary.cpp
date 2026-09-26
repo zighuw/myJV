@@ -52,7 +52,7 @@ ScanOutcome performScan (const juce::File& root,
     std::vector<std::pair<std::string, juce::File>> files;
 
     for (const auto& file : root.findChildFiles (juce::File::findFiles, true, "*",
-                                                 juce::File::FollowSymlinks::noCycles))
+                                                 juce::File::FollowSymlinks::no))
     {
         if (shouldStop())
             return outcome;

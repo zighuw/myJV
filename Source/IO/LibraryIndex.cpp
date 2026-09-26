@@ -27,7 +27,7 @@ std::int64_t getInt64 (const juce::DynamicObject& object, const juce::Identifier
 {
     const auto value = object.getProperty (name);
     return value.isInt() || value.isInt64() || value.isDouble() || value.isBool()
-               ? static_cast<std::int64_t> (value)
+               ? static_cast<std::int64_t> (static_cast<juce::int64> (value))
                : 0;
 }
 
