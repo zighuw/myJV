@@ -105,6 +105,7 @@ if(BUILD_TESTING)
     add_executable(myJV_tests
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
+        Tests/model_tests.cpp
         Tests/param_tests.cpp
         Tests/test_main.cpp
         ${MYJV_CORE_SOURCES}
