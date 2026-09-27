@@ -30,7 +30,7 @@ class SynthEngine
 public:
     SynthEngine() = default;
 
-    void prepare (double newSampleRate, int maxBlockSize) noexcept;
+    void prepare (double, int) noexcept;
     void releaseResources() noexcept;
 
     void setMidiEventSink (MidiEventSink* sink) noexcept;
@@ -43,6 +43,4 @@ private:
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
 
     std::atomic<MidiEventSink*> midiSink { nullptr };
-    double sampleRate = 48000.0;
-    double phases[kNumOutputBuses] {};
 };
