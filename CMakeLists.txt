@@ -116,6 +116,7 @@ if(BUILD_TESTING)
         Tests/param_tests.cpp
         Tests/sample_player_tests.cpp
         Tests/test_main.cpp
+        Tests/zone_selection_tests.cpp
         ${MYJV_CORE_SOURCES}
         ${MYJV_SOURCE_HEADERS})
 
