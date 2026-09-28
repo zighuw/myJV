@@ -15,7 +15,8 @@
 
 struct LibraryEntry
 {
-    std::string relativePath;      // '/' separated, relative to the library root
+    std::string path;              // '/' separated: root-relative, or absolute when external
+    bool external = false;         // true = file lives outside the library root (no copy on import)
     std::string fileHash;          // SHA-256 hex (lowercase) of the file contents
     int rootKey = 60;
     LoopInfo loop;
@@ -52,6 +53,9 @@ struct ScanResult
     int entriesUpdated = 0;
     int duplicatesSkipped = 0;
     int thumbnailsRemoved = 0;
+    // Entry paths that are absent from disk: root-relative for internal
+    // entries, absolute for external entries (disambiguate with
+    // juce::File::isAbsolutePath).
     std::vector<std::string> missingPaths;
 };
 
@@ -74,6 +78,8 @@ public:
     juce::File getRootDirectory() const;
 
     // Message thread only; must not be called while a scan is in flight.
+    // Entries are assumed validated (external => absolute path, internal =>
+    // root-relative); LibraryIndex/SampleImporter own that validation.
     void setEntries (std::vector<LibraryEntry> newEntries);
     const std::vector<LibraryEntry>& getEntries() const noexcept;
 

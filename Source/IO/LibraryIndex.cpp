@@ -5,6 +5,7 @@ namespace
 const juce::Identifier kSchemaVersionKey { "schemaVersion" };
 const juce::Identifier kSamplesKey { "samples" };
 const juce::Identifier kPathKey { "path" };
+const juce::Identifier kExternalKey { "external" };
 const juce::Identifier kHashKey { "hash" };
 const juce::Identifier kRootKeyKey { "rootKey" };
 const juce::Identifier kSourceSampleRateKey { "sourceSampleRate" };
@@ -39,14 +40,47 @@ double getDouble (const juce::DynamicObject& object, const juce::Identifier& nam
                : fallback;
 }
 
-bool isSafeRelativePath (const juce::String& path)
+bool getBool (const juce::DynamicObject& object, const juce::Identifier& name)
 {
-    if (path.isEmpty() || juce::File::isAbsolutePath (path))
+    // Fail-closed: only a real JSON boolean is accepted (e.g. "external": 1 is
+    // treated as false, so the entry is rejected if its path is absolute).
+    const auto value = object.getProperty (name);
+    return value.isBool() && static_cast<bool> (value);
+}
+
+bool isFullyQualifiedAbsolutePath (const juce::String& path)
+{
+#if JUCE_WINDOWS
+    if (path.length() >= 3 && juce::CharacterFunctions::isLetter (path[0])
+        && path[1] == ':' && (path[2] == '/' || path[2] == '\\'))
+        return true;
+
+    return path.startsWith ("//") || path.startsWith ("\\\\");   // UNC
+#else
+    return path.startsWithChar ('/');
+#endif
+}
+
+bool isSafeEntryPath (const juce::String& path, bool external)
+{
+    if (path.isEmpty())
         return false;
 
     juce::StringArray segments;
     segments.addTokens (path, "/\\", "");
-    return ! segments.contains ("..");
+
+    if (segments.contains (".."))
+        return false;
+
+    if (external)
+        return isFullyQualifiedAbsolutePath (path);
+
+    // Internal entries must stay under the root: reject absolute paths and
+    // root-relative Windows paths like "/evil.wav" (juce::File treats them as
+    // root-relative and would resolve them outside the library root).
+    return ! isFullyQualifiedAbsolutePath (path)
+           && ! path.startsWithChar ('/')
+           && ! path.startsWithChar ('\\');
 }
 
 juce::var entriesToVar (const std::vector<LibraryEntry>& entries)
@@ -61,7 +95,8 @@ juce::var entriesToVar (const std::vector<LibraryEntry>& entries)
         loop->setProperty (kLoopCrossfadeSamplesKey, entry.loop.crossfadeSamples);
 
         auto* object = new juce::DynamicObject();
-        object->setProperty (kPathKey, juce::String (entry.relativePath));
+        object->setProperty (kPathKey, juce::String (entry.path));
+        object->setProperty (kExternalKey, entry.external);
         object->setProperty (kHashKey, juce::String (entry.fileHash));
         object->setProperty (kRootKeyKey, entry.rootKey);
         object->setProperty (kSourceSampleRateKey, entry.sourceSampleRate);
@@ -86,13 +121,15 @@ bool varToEntry (const juce::var& value, LibraryEntry& entry)
         return false;
 
     const auto path = object->getProperty (kPathKey).toString();
+    const auto external = getBool (*object, kExternalKey);
     const auto hash = object->getProperty (kHashKey).toString();
 
-    if (! isSafeRelativePath (path) || hash.isEmpty())
+    if (! isSafeEntryPath (path, external) || hash.isEmpty())
         return false;
 
     entry = LibraryEntry {};
-    entry.relativePath = path.toStdString();
+    entry.path = path.toStdString();
+    entry.external = external;
     entry.fileHash = hash.toStdString();
     entry.rootKey = getInt (*object, kRootKeyKey, 60);
     entry.sourceSampleRate = getDouble (*object, kSourceSampleRateKey, 48000.0);

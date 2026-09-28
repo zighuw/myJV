@@ -18,6 +18,15 @@ std::string hashFile (const juce::File& file)
     return juce::SHA256 (file).toHexString().toStdString();
 }
 
+juce::File resolveEntryFile (const juce::File& root, const LibraryEntry& entry)
+{
+    // Explicit branch (self-documenting): juce::File::getChildFile would also
+    // return an absolute child unchanged, making external/internal resolution
+    // behaviourally identical here.
+    return entry.external ? juce::File (juce::String (entry.path))
+                          : root.getChildFile (juce::String (entry.path));
+}
+
 struct ScanOutcome
 {
     ScanResult result;
@@ -101,15 +110,15 @@ ScanOutcome performScan (const juce::File& root,
         if (shouldStop())
             return outcome;
 
-        existingPaths.insert (entry.relativePath);
+        existingPaths.insert (entry.path);
 
-        const auto file = root.getChildFile (juce::String (entry.relativePath));
+        const auto file = resolveEntryFile (root, entry);
 
         if (file.existsAsFile())
         {
             const auto hash = hashFile (file);
 
-            if (! claimedHashes.emplace (hash, entry.relativePath).second)
+            if (! claimedHashes.emplace (hash, entry.path).second)
             {
                 ++outcome.result.duplicatesSkipped;
                 continue;
@@ -128,32 +137,32 @@ ScanOutcome performScan (const juce::File& root,
         kept.push_back (entry);
     }
 
-    for (const auto& [relativePath, file] : files)
+    for (const auto& [path, file] : files)
     {
         if (shouldStop())
             return outcome;
 
-        if (existingPaths.count (relativePath) != 0)
+        if (existingPaths.count (path) != 0)
             continue;
 
         const auto hash = hashFile (file);
 
-        if (! claimedHashes.emplace (hash, relativePath).second)
+        if (! claimedHashes.emplace (hash, path).second)
         {
             ++outcome.result.duplicatesSkipped;
             continue;
         }
 
         LibraryEntry entry;
-        entry.relativePath = relativePath;
+        entry.path = path;
         entry.fileHash = hash;
         kept.push_back (entry);
         ++outcome.result.entriesAdded;
     }
 
     for (const auto& entry : kept)
-        if (! root.getChildFile (juce::String (entry.relativePath)).existsAsFile())
-            outcome.result.missingPaths.push_back (entry.relativePath);
+        if (! resolveEntryFile (root, entry).existsAsFile())
+            outcome.result.missingPaths.push_back (entry.path);
 
     outcome.result.thumbnailsRemoved = removeOrphanedThumbnails (root, kept, kThumbnailOrphanGraceSeconds);
 
