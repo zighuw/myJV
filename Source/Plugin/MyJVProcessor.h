@@ -2,9 +2,12 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Engine/AuditionVoice.h"
 #include "Engine/SynthEngine.h"
+#include "Model/SampleLibrary.h"
 
-class MyJVProcessor final : public juce::AudioProcessor
+class MyJVProcessor final : public juce::AudioProcessor,
+                            private juce::Timer
 {
 public:
     MyJVProcessor();
@@ -81,9 +84,27 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // Message thread. The library and audition voice are owned here so the
+    // editor and tests share one instance (M1-07b).
+    SampleLibrary& getSampleLibrary() noexcept
+    {
+        jassert (juce::MessageManager::existsAndIsCurrentThread());
+        return library;
+    }
+
+    AuditionVoice& getAuditionVoice() noexcept
+    {
+        jassert (juce::MessageManager::existsAndIsCurrentThread());
+        return audition;
+    }
+
 private:
+    void timerCallback() override;
+
     juce::AudioProcessorValueTreeState apvts;
     SynthEngine engine;
+    SampleLibrary library;
+    AuditionVoice audition;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MyJVProcessor)
 };
