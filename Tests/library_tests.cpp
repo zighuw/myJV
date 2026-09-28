@@ -26,27 +26,27 @@ File makeLibraryDirectory()
     return directory;
 }
 
-File writeFile (const File& directory, const String& relativePath, const String& content)
+File writeFile (const File& directory, const String& path, const String& content)
 {
-    auto file = directory.getChildFile (relativePath);
+    auto file = directory.getChildFile (path);
     file.getParentDirectory().createDirectory();
     REQUIRE (file.replaceWithText (content));
     return file;
 }
 
-const LibraryEntry* findEntry (const SampleLibrary& library, const std::string& relativePath)
+const LibraryEntry* findEntry (const SampleLibrary& library, const std::string& path)
 {
     for (const auto& entry : library.getEntries())
-        if (entry.relativePath == relativePath)
+        if (entry.path == path)
             return &entry;
 
     return nullptr;
 }
 
-LibraryEntry makeEntry (const std::string& relativePath, const std::string& fileHash)
+LibraryEntry makeEntry (const std::string& path, const std::string& fileHash)
 {
     LibraryEntry entry;
-    entry.relativePath = relativePath;
+    entry.path = path;
     entry.fileHash = fileHash;
     return entry;
 }
@@ -92,7 +92,7 @@ TEST_CASE ("library index round-trips entries through json")
     REQUIRE (LibraryIndex::load (indexFile, loaded));
     REQUIRE (loaded.size() == 2);
 
-    REQUIRE (loaded[0].relativePath == first.relativePath);
+    REQUIRE (loaded[0].path == first.path);
     CHECK (loaded[0].fileHash == first.fileHash);
     CHECK (loaded[0].rootKey == 36);
     CHECK (loaded[0].sourceSampleRate == 44100.0);
@@ -101,8 +101,10 @@ TEST_CASE ("library index round-trips entries through json")
     CHECK (loaded[0].loop.start == 120);
     CHECK (loaded[0].loop.end == 480);
     CHECK (loaded[0].loop.crossfadeSamples == 32);
+    CHECK_FALSE (first.external);
+    CHECK_FALSE (loaded[0].external);
 
-    REQUIRE (loaded[1].relativePath == second.relativePath);
+    REQUIRE (loaded[1].path == second.path);
     CHECK (loaded[1].fileHash == second.fileHash);
     CHECK (loaded[1].rootKey == 72);
     CHECK (loaded[1].sourceSampleRate == 48000.0);
@@ -111,6 +113,28 @@ TEST_CASE ("library index round-trips entries through json")
     CHECK (loaded[1].loop.start == 0);
     CHECK (loaded[1].loop.end == 0);
     CHECK (loaded[1].loop.crossfadeSamples == 0);
+}
+
+TEST_CASE ("library index round-trips external entries")
+{
+    const auto directory = makeLibraryDirectory();
+    const auto indexFile = directory.getChildFile ("library.json");
+    const auto externalFile = writeFile (directory, "Outside/Sample.wav", "abc");
+    const auto absolutePath = externalFile.getFullPathName().replaceCharacter ('\\', '/').toStdString();
+
+    auto entry = makeEntry (absolutePath, kAbcHash);
+    entry.external = true;
+
+    REQUIRE (LibraryIndex::save (indexFile, { entry }));
+
+    const auto json = indexFile.loadFileAsString();
+    REQUIRE (json.contains ("external"));
+
+    std::vector<LibraryEntry> loaded;
+    REQUIRE (LibraryIndex::load (indexFile, loaded));
+    REQUIRE (loaded.size() == 1);
+    CHECK (loaded[0].external);
+    CHECK (loaded[0].path == absolutePath);
 }
 
 TEST_CASE ("library index save creates missing parent directories")
@@ -196,7 +220,7 @@ TEST_CASE ("scan skips duplicate content and keeps the first path")
     CHECK (result.entriesAdded == 1);
     CHECK (result.duplicatesSkipped == 1);
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "A.wav");
+    CHECK (library.getEntries()[0].path == "A.wav");
 }
 
 TEST_CASE ("rescanning an unchanged library is idempotent")
@@ -271,7 +295,7 @@ TEST_CASE ("deleted files are reported missing but stay indexed")
     REQUIRE (result.missingPaths.size() == 1);
     CHECK (result.missingPaths[0] == "A.wav");
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "A.wav");
+    CHECK (library.getEntries()[0].path == "A.wav");
 }
 
 TEST_CASE ("new files are added on rescan")
@@ -288,7 +312,7 @@ TEST_CASE ("new files are added on rescan")
 
     CHECK (result.entriesAdded == 1);
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "New.wav");
+    CHECK (library.getEntries()[0].path == "New.wav");
 }
 
 TEST_CASE ("a new duplicate of an indexed file is skipped without losing metadata")
@@ -311,7 +335,7 @@ TEST_CASE ("a new duplicate of an indexed file is skipped without losing metadat
     CHECK (result.entriesAdded == 0);
     CHECK (result.duplicatesSkipped == 1);
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "A.wav");
+    CHECK (library.getEntries()[0].path == "A.wav");
     CHECK (library.getEntries()[0].rootKey == 36);
 }
 
@@ -333,7 +357,7 @@ TEST_CASE ("content changing to collide with another entry drops the later dupli
     CHECK (result.duplicatesSkipped == 1);
     CHECK (result.missingPaths.empty());
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "A.wav");
+    CHECK (library.getEntries()[0].path == "A.wav");
 }
 
 TEST_CASE ("sample cache publishes and releases shared samples")
@@ -438,7 +462,7 @@ TEST_CASE ("scan does not follow directory links")
     REQUIRE (result.succeeded);
     CHECK (result.filesFound == 1);
     REQUIRE (library.getEntries().size() == 1);
-    CHECK (library.getEntries()[0].relativePath == "A.wav");
+    CHECK (library.getEntries()[0].path == "A.wav");
 }
 
 TEST_CASE ("library index tolerates optional fields and coerces wrong types")
@@ -470,18 +494,33 @@ TEST_CASE ("library index tolerates optional fields and coerces wrong types")
 TEST_CASE ("library index skips unsafe, unhashed and malformed samples")
 {
     const auto directory = makeLibraryDirectory();
-    const auto file = writeFile (directory, "unsafe.json",
-        "{\"schemaVersion\": 1, \"samples\": ["
-        "{\"path\": \"../evil.wav\", \"hash\": \"abc\"},"
-        "{\"path\": \"sub/../evil.wav\", \"hash\": \"def\"},"
-        "{\"path\": \"C.wav\", \"hash\": \"\"},"
-        "{\"path\": \"D.wav\", \"hash\": \"ghi\"}"
-        "]}");
+    const auto absolute = writeFile (directory, "Outside/Real.wav", "abc")
+                              .getFullPathName().replaceCharacter ('\\', '/');
+    const auto dotted = File::getSpecialLocation (File::tempDirectory).getFullPathName().replaceCharacter ('\\', '/')
+                        + "/../evil.wav";
+
+    const auto json = juce::String ("{\"schemaVersion\": 1, \"samples\": [")
+                      + "{\"path\": \"../evil.wav\", \"hash\": \"abc\"},"
+                      + "{\"path\": \"sub/../evil.wav\", \"hash\": \"def\"},"
+                      + "{\"path\": \"C.wav\", \"hash\": \"\"},"
+                      + "{\"path\": \"/rooted.wav\", \"hash\": \"dd\"},"
+                      + "{\"path\": \"relative/external.wav\", \"hash\": \"aa\", \"external\": true},"
+                      + "{\"path\": \"C:foo\", \"hash\": \"ee\", \"external\": true},"
+                      + "{\"path\": \"" + dotted + "\", \"hash\": \"bb\", \"external\": true},"
+                      + "{\"path\": \"" + absolute + "\", \"hash\": \"ff\", \"external\": 1},"
+                      + "{\"path\": \"" + absolute + "\", \"hash\": \"cc\", \"external\": true},"
+                      + "{\"path\": \"D.wav\", \"hash\": \"ghi\"}"
+                      + "]}";
+
+    const auto file = writeFile (directory, "unsafe.json", json);
 
     std::vector<LibraryEntry> entries;
     REQUIRE (LibraryIndex::load (file, entries));
-    REQUIRE (entries.size() == 1);
-    CHECK (entries[0].relativePath == "D.wav");
+    REQUIRE (entries.size() == 2);
+    CHECK (entries[0].external);
+    CHECK (entries[0].path == absolute.toStdString());
+    CHECK_FALSE (entries[1].external);
+    CHECK (entries[1].path == "D.wav");
 
     const auto notArray = writeFile (directory, "not-array.json",
         "{\"schemaVersion\": 1, \"samples\": 7}");
@@ -489,6 +528,81 @@ TEST_CASE ("library index skips unsafe, unhashed and malformed samples")
     entries.push_back (makeEntry ("stale.wav", kAbcHash));
     REQUIRE (LibraryIndex::load (notArray, entries));
     CHECK (entries.empty());
+}
+
+TEST_CASE ("scan tracks external entries and reports them missing")
+{
+    const auto directory = makeLibraryDirectory();
+    const auto external = File::getSpecialLocation (File::tempDirectory).getChildFile ("myJVExternalSample.wav");
+    REQUIRE (external.replaceWithText ("abc"));
+
+    LibraryEntry entry;
+    entry.path = external.getFullPathName().replaceCharacter ('\\', '/').toStdString();
+    entry.fileHash = kAbcHash;
+    entry.external = true;
+
+    SampleLibrary library;
+    library.setRootDirectory (directory);
+    library.setEntries ({ entry });
+
+    auto result = library.scanNow();
+    REQUIRE (result.succeeded);
+    CHECK (result.missingPaths.empty());
+    REQUIRE (library.getEntries().size() == 1);
+    CHECK (library.getEntries()[0].external);
+
+    REQUIRE (external.replaceWithText ("def"));
+    result = library.scanNow();
+    CHECK (result.entriesUpdated == 1);
+    CHECK (library.getEntries()[0].fileHash != kAbcHash);
+
+    REQUIRE (external.deleteFile());
+    result = library.scanNow();
+    REQUIRE (result.missingPaths.size() == 1);
+    CHECK (result.missingPaths[0] == entry.path);
+    CHECK (library.getEntries().size() == 1);
+
+    REQUIRE (external.replaceWithText ("abc"));
+    result = library.scanNow();
+    CHECK (result.missingPaths.empty());
+    CHECK (result.entriesUpdated == 1);
+    CHECK (library.getEntries()[0].fileHash == kAbcHash);
+}
+
+TEST_CASE ("scan dedup keeps the first listed entry across internal and external")
+{
+    const auto directory = makeLibraryDirectory();
+    writeFile (directory, "A.wav", "abc");
+
+    const auto external = File::getSpecialLocation (File::tempDirectory).getChildFile ("myJVExternalDup.wav");
+    REQUIRE (external.replaceWithText ("abc"));
+
+    LibraryEntry externalEntry;
+    externalEntry.path = external.getFullPathName().replaceCharacter ('\\', '/').toStdString();
+    externalEntry.fileHash = kAbcHash;
+    externalEntry.external = true;
+
+    SampleLibrary externalFirst;
+    externalFirst.setRootDirectory (directory);
+    externalFirst.setEntries ({ externalEntry });
+    const auto result = externalFirst.scanNow();
+    CHECK (result.duplicatesSkipped == 1);
+    REQUIRE (externalFirst.getEntries().size() == 1);
+    CHECK (externalFirst.getEntries()[0].external);
+
+    LibraryEntry internalEntry;
+    internalEntry.path = "A.wav";
+    internalEntry.fileHash = kAbcHash;
+
+    SampleLibrary internalFirst;
+    internalFirst.setRootDirectory (directory);
+    internalFirst.setEntries ({ internalEntry, externalEntry });
+    const auto second = internalFirst.scanNow();
+    CHECK (second.duplicatesSkipped == 1);
+    REQUIRE (internalFirst.getEntries().size() == 1);
+    CHECK_FALSE (internalFirst.getEntries()[0].external);
+
+    external.deleteFile();
 }
 
 TEST_CASE ("library index rejects non-integral schema versions")

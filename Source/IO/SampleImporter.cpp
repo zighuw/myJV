@@ -179,12 +179,6 @@ ImportResult SampleImporter::importFile (const juce::File& file, const juce::Fil
         return result;
     }
 
-    if (! file.isAChildOf (libraryRoot))
-    {
-        result.errorMessage = "file is outside the library root";
-        return result;
-    }
-
     if (options.targetSampleRate != 0.0
         && (options.targetSampleRate < kMinImportSampleRate || options.targetSampleRate > kMaxImportSampleRate))
     {
@@ -273,10 +267,15 @@ ImportResult SampleImporter::importFile (const juce::File& file, const juce::Fil
     }
 
     sample->embeddedLoop = loop;
-    sample->name = relativePathString (libraryRoot, file);
     sample->fileHash = juce::SHA256 (file).toHexString().toStdString();
 
-    result.entry.relativePath = sample->name;
+    const auto external = ! file.isAChildOf (libraryRoot);
+    const auto entryPath = external ? file.getFullPathName().replaceCharacter ('\\', '/').toStdString()
+                                    : relativePathString (libraryRoot, file);
+    sample->name = entryPath;
+
+    result.entry.path = entryPath;
+    result.entry.external = external;
     result.entry.fileHash = sample->fileHash;
     result.entry.rootKey = rootKey;
     result.entry.loop = loop;

@@ -3,6 +3,7 @@
 #include <juce_cryptography/juce_cryptography.h>
 #include <juce_graphics/juce_graphics.h>
 
+#include "IO/LibraryIndex.h"
 #include "IO/SampleImporter.h"
 #include "Model/SampleLibrary.h"
 
@@ -146,7 +147,8 @@ TEST_CASE ("import decodes wav audio, root key and loop region")
     REQUIRE (result.sample->data.getNumSamples() == kSignalSamples);
     CHECK (maximumDifference (signal, result.sample->data) < 1.0e-3f);
 
-    CHECK (result.entry.relativePath == "Tone.wav");
+    CHECK (result.entry.path == "Tone.wav");
+    CHECK_FALSE (result.entry.external);
     CHECK (result.entry.fileHash == result.sample->fileHash);
     CHECK (result.entry.rootKey == 36);
     CHECK (result.entry.loop.start == 10);
@@ -174,7 +176,7 @@ TEST_CASE ("import uses defaults without root key or loop metadata")
     REQUIRE (result.sample->data.getNumChannels() == 2);
     CHECK (result.sample->data.getNumSamples() == 128);
     CHECK (maximumDifference (signal, result.sample->data) < 1.0e-3f);
-    CHECK (result.entry.relativePath == "Stereo.aif");
+    CHECK (result.entry.path == "Stereo.aif");
 }
 
 TEST_CASE ("import decodes flac files")
@@ -404,7 +406,7 @@ TEST_CASE ("import generates thumbnails for long files without overflow")
     CHECK (hasInk (image));
 }
 
-TEST_CASE ("import rejects files outside the library root")
+TEST_CASE ("import stores files outside the library root as external references")
 {
     const auto directory = makeImportDirectory();
     const auto outside = File::getSpecialLocation (File::tempDirectory).getChildFile ("myJVOutside.wav");
@@ -412,8 +414,23 @@ TEST_CASE ("import rejects files outside the library root")
 
     const auto result = SampleImporter::importFile (outside, directory);
 
-    CHECK_FALSE (result.succeeded);
-    CHECK_FALSE (result.errorMessage.empty());
+    REQUIRE (result.succeeded);
+    REQUIRE (result.sample != nullptr);
+    CHECK (result.entry.external);
+    CHECK (result.entry.path == outside.getFullPathName().replaceCharacter ('\\', '/').toStdString());
+    CHECK (result.sample->name == result.entry.path);
+    CHECK (juce::File (result.entry.path).existsAsFile());
+
+    // The external entry round-trips through the library index.
+    const auto indexFile = directory.getChildFile ("library.json");
+    REQUIRE (LibraryIndex::save (indexFile, { result.entry }));
+
+    std::vector<LibraryEntry> loaded;
+    REQUIRE (LibraryIndex::load (indexFile, loaded));
+    REQUIRE (loaded.size() == 1);
+    CHECK (loaded[0].external);
+    CHECK (loaded[0].path == result.entry.path);
+
     outside.deleteFile();
 }
 

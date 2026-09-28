@@ -31,11 +31,13 @@ struct ImportResult
 // for publishing the sample and entry on the message thread afterwards
 // (SampleLibrary contract, M1-02).
 //
-// The file must live under libraryRoot (the caller copies external files into
-// the library first). Resampling uses Lagrange interpolation without an
-// anti-alias filter: adequate for upsampling and for downsampling when the
-// source has little energy above the target Nyquist; a high-quality offline
-// resampler (libsamplerate/r8brain, architecture 2.2) remains a v1.1 option.
+// Files inside libraryRoot produce internal entries (root-relative paths);
+// files outside are imported as external references (absolute paths, no copy) -
+// ADR-019. Thumbnails are always written under the library root.
+// Resampling uses Lagrange interpolation without an anti-alias filter: adequate
+// for upsampling and for downsampling when the source has little energy above
+// the target Nyquist; a high-quality offline resampler (libsamplerate/r8brain,
+// architecture 2.2) remains a v1.1 option.
 class SampleImporter
 {
 public:
