@@ -16,6 +16,7 @@ FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
     Source/DSP/SamplePlayer.cpp
+    Source/Engine/AssetReclaimer.cpp
     Source/Engine/SynthEngine.cpp
     Source/IO/LibraryIndex.cpp
     Source/IO/SampleImporter.cpp
@@ -108,6 +109,7 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(Catch2)
 
     add_executable(myJV_tests
+        Tests/asset_reclaimer_tests.cpp
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
         Tests/importer_tests.cpp
