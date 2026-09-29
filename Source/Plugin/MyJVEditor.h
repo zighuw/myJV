@@ -5,6 +5,7 @@
 
 #include "IO/SampleImporter.h"
 #include "Model/SampleLibrary.h"
+#include "Plugin/WaveformView.h"
 #include "Plugin/ZoneDraft.h"
 #include "Plugin/ZoneMapView.h"
 #include "Plugin/ZonePropertiesPanel.h"
@@ -48,6 +49,7 @@ private:
     void handleScanResult (const ScanResult& result);
     void toggleAudition();
     void autoMapZones();
+    void useFileLoop();
     void saveIndex();
     void updateStatus();
 
@@ -62,11 +64,13 @@ private:
     juce::TextButton importButton { "Import..." };
     juce::TextButton auditionButton { "Audition" };
     juce::TextButton autoMapButton { "Auto-Map" };
+    juce::TextButton useFileLoopButton { "Use File Loop" };
     juce::Label statusLabel;
 
     ZoneDraft zoneDraft;
     ZoneMapView zoneMap { zoneDraft };
     ZonePropertiesPanel zoneProperties { zoneDraft };
+    WaveformView waveform { zoneDraft, library };
 
     std::unique_ptr<juce::FileChooser> chooser;
     juce::ThreadPool importPool { 1 };

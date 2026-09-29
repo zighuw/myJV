@@ -3,6 +3,7 @@
 #include "Engine/AuditionVoice.h"
 #include "IO/LibraryIndex.h"
 #include "Model/ZoneMapping.h"
+#include "Plugin/LoopEditGeometry.h"
 #include "Plugin/MyJVProcessor.h"
 #include "Plugin/SamplerUiHelpers.h"
 
@@ -65,7 +66,7 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
       library (ownerProcessor.getSampleLibrary()),
       audition (ownerProcessor.getAuditionVoice())
 {
-    setSize (900, 620);
+    setSize (900, 700);
 
     addAndMakeVisible (list);
     list.setRowHeight (22);
@@ -83,6 +84,9 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
     addAndMakeVisible (autoMapButton);
     autoMapButton.onClick = [this] { autoMapZones(); };
 
+    addAndMakeVisible (useFileLoopButton);
+    useFileLoopButton.onClick = [this] { useFileLoop(); };
+
     addAndMakeVisible (statusLabel);
     statusLabel.setJustificationType (juce::Justification::centredLeft);
     statusLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
@@ -94,6 +98,11 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
     };
 
     addAndMakeVisible (zoneProperties);
+    addAndMakeVisible (waveform);
+    waveform.onStatusMessage = [this] (juce::String message)
+    {
+        statusLabel.setText (message, juce::dontSendNotification);
+    };
 
     library.addChangeListener (this);
     zoneDraft.addChangeListener (this);
@@ -147,20 +156,22 @@ void MyJVEditor::resized()
     area.removeFromTop (22);   // title
 
     auto bottom = area.removeFromBottom (26);
-    const auto buttonWidth = juce::jmax (1, bottom.getWidth() / 5);
+    const auto buttonWidth = juce::jmax (1, bottom.getWidth() / 6);
 
     scanButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
     importButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
     auditionButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
     autoMapButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
+    useFileLoopButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
 
     statusLabel.setBounds (area.removeFromBottom (24).reduced (2));
 
     auto left = area.removeFromLeft (360);
     list.setBounds (left.reduced (0, 2));
 
-    zoneProperties.setBounds (area.removeFromBottom (150).reduced (2));
-    zoneMap.setBounds (area.reduced (2));
+    zoneMap.setBounds (area.removeFromTop (juce::jmin (240, area.getHeight() / 3)).reduced (2));
+    waveform.setBounds (area.removeFromTop (juce::jmin (170, area.getHeight() / 2)).reduced (2));
+    zoneProperties.setBounds (area.reduced (2));
 }
 
 int MyJVEditor::getNumRows()
@@ -215,6 +226,7 @@ void MyJVEditor::selectedRowsChanged (int)
     if (row < 0 || row >= (int) entries.size())
     {
         zoneMap.setPinnedSample (nullptr);
+        waveform.clearEntry();
         pendingPinHash.clear();
         return;
     }
@@ -222,6 +234,7 @@ void MyJVEditor::selectedRowsChanged (int)
     const auto entry = entries[(std::size_t) row];
     auto sample = library.findSample (entry.fileHash);
     zoneMap.setPinnedSample (sample);
+    waveform.setEntry (entry);
 
     if (sample == nullptr && ! library.isScanning())
     {
@@ -348,6 +361,9 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         pendingPinHash.clear();
     }
 
+    if (waveform.isShowing (result.entry.fileHash))
+        waveform.setEntry (result.entry);
+
     if (auditionAfterImport && auditionToken == auditionRequestToken)
         audition.play (result.sample, result.entry.rootKey);
 
@@ -363,6 +379,15 @@ void MyJVEditor::handleScanResult (const ScanResult& result)
         missingPaths.insert (path);
 
     list.updateContent();
+
+    // Entries may have changed (loop/thumbnail/length) or disappeared.
+    const auto row = list.getSelectedRow();
+
+    if (row >= 0 && row < (int) library.getEntries().size())
+        waveform.setEntry (library.getEntries()[(std::size_t) row]);
+    else
+        waveform.clearEntry();
+
     updateStatus();
 }
 
@@ -430,6 +455,43 @@ void MyJVEditor::autoMapZones()
     zoneDraft.setZoneSet (ZoneMapping::buildAutoMappedZoneSet (source, options));
     statusLabel.setText ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones",
                          juce::dontSendNotification);
+}
+
+void MyJVEditor::useFileLoop()
+{
+    const auto row = list.getSelectedRow();
+    const auto& entries = library.getEntries();
+    const auto index = zoneDraft.getSelectedIndex();
+    const auto* selected = zoneDraft.getSelectedZone();
+
+    if (row < 0 || row >= (int) entries.size() || selected == nullptr || index < 0)
+    {
+        statusLabel.setText ("Select a sample and a zone first", juce::dontSendNotification);
+        return;
+    }
+
+    auto zone = *selected;
+
+    if (zone.sample != nullptr && zone.sample->fileHash != entries[(std::size_t) row].fileHash)
+    {
+        statusLabel.setText ("Selected zone uses a different sample", juce::dontSendNotification);
+        return;
+    }
+
+    const auto length = zone.sample != nullptr ? (std::int64_t) zone.sample->data.getNumSamples()
+                                               : entries[(std::size_t) row].lengthSamples;
+    const auto loop = LoopEditGeometry::sanitized (entries[(std::size_t) row].loop, length);
+
+    if (loop.end <= loop.start)
+    {
+        statusLabel.setText ("File has no valid loop", juce::dontSendNotification);
+        return;
+    }
+
+    zone.loop = loop;
+    zoneDraft.updateZone (index, zone);
+
+    statusLabel.setText ("File loop applied to the selected zone", juce::dontSendNotification);
 }
 
 void MyJVEditor::saveIndex()
