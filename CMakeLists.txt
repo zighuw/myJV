@@ -27,6 +27,7 @@ set(MYJV_CORE_SOURCES
     Source/Plugin/MyJVEditor.cpp
     Source/Plugin/MyJVLog.cpp
     Source/Plugin/MyJVProcessor.cpp
+    Source/Plugin/WaveformView.cpp
     Source/Plugin/ZoneMapView.cpp
     Source/Plugin/ZonePropertiesPanel.cpp)
 
@@ -65,6 +66,8 @@ set(MYJV_SOURCE_HEADERS
     Source/Plugin/MyJVEditor.h
     Source/Plugin/MyJVLog.h
     Source/Plugin/MyJVProcessor.h
+    Source/Plugin/LoopEditGeometry.h
+    Source/Plugin/WaveformView.h
     Source/Plugin/ZoneDraft.h
     Source/Plugin/ZoneMapGeometry.h
     Source/Plugin/ZoneMapView.h
@@ -131,6 +134,7 @@ if(BUILD_TESTING)
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp
         Tests/test_main.cpp
+        Tests/waveform_tests.cpp
         Tests/zone_grid_tests.cpp
         Tests/zone_mapping_tests.cpp
         Tests/zone_selection_tests.cpp
