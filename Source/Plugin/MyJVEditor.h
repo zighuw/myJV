@@ -5,6 +5,9 @@
 
 #include "IO/SampleImporter.h"
 #include "Model/SampleLibrary.h"
+#include "Plugin/ZoneDraft.h"
+#include "Plugin/ZoneMapView.h"
+#include "Plugin/ZonePropertiesPanel.h"
 
 #include <memory>
 #include <set>
@@ -33,6 +36,7 @@ private:
     int getNumRows() override;
     void paintListBoxItem (int rowNumber, juce::Graphics&, int width, int height, bool rowIsSelected) override;
     void listBoxItemDoubleClicked (int rowNumber, const juce::MouseEvent&) override;
+    void selectedRowsChanged (int lastRowSelected) override;
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
@@ -43,6 +47,7 @@ private:
     void applyImport (ImportResult result, bool auditionAfterImport, int auditionToken);
     void handleScanResult (const ScanResult& result);
     void toggleAudition();
+    void autoMapZones();
     void saveIndex();
     void updateStatus();
 
@@ -56,11 +61,17 @@ private:
     juce::TextButton scanButton { "Scan" };
     juce::TextButton importButton { "Import..." };
     juce::TextButton auditionButton { "Audition" };
+    juce::TextButton autoMapButton { "Auto-Map" };
     juce::Label statusLabel;
+
+    ZoneDraft zoneDraft;
+    ZoneMapView zoneMap { zoneDraft };
+    ZonePropertiesPanel zoneProperties { zoneDraft };
 
     std::unique_ptr<juce::FileChooser> chooser;
     juce::ThreadPool importPool { 1 };
     std::set<std::string> missingPaths;
+    std::string pendingPinHash;
     int importsInFlight = 0;
     int auditionRequestToken = 0;
 
