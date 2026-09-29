@@ -2,6 +2,7 @@
 
 #include "Params/ParameterIDs.h"
 #include "Plugin/MyJVCrashHandler.h"
+#include "Plugin/MyJVEditor.h"
 #include "Plugin/MyJVLog.h"
 
 MyJVProcessor::MyJVProcessor()
@@ -11,17 +12,33 @@ MyJVProcessor::MyJVProcessor()
     MyJVLog::initialise (MyJVLog::defaultLogDirectory());
     MyJVCrashHandler::install (JucePlugin_VersionString);
     MyJVLog::logInfo ("processor created: " + juce::String (JucePlugin_VersionString));
+
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        startTimerHz (10);
 }
 
 MyJVProcessor::~MyJVProcessor()
 {
+    stopTimer();
+
     MyJVLog::logInfo ("processor destroyed");
     MyJVLog::shutdown();
+}
+
+void MyJVProcessor::timerCallback()
+{
+    audition.purgeRetired();
 }
 
 void MyJVProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     engine.prepare (sampleRate, samplesPerBlock);
+    audition.prepare (sampleRate);
+
+    // The timer drives audition retire cleanup on the message thread; start it
+    // here too in case the processor was constructed off the message thread.
+    if (! isTimerRunning() && juce::MessageManager::existsAndIsCurrentThread())
+        startTimerHz (10);
 }
 
 void MyJVProcessor::releaseResources()
@@ -39,17 +56,19 @@ void MyJVProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 {
     juce::ScopedNoDenormals noDenormals;
 
-    engine.process (buildBusBuffers (*this, buffer), midiMessages, buffer.getNumSamples());
+    const auto buses = buildBusBuffers (*this, buffer);
+    engine.process (buses, midiMessages, buffer.getNumSamples());
+    audition.render (buses.l[0], buses.r[0], buffer.getNumSamples());
 }
 
 juce::AudioProcessorEditor* MyJVProcessor::createEditor()
 {
-    return nullptr;
+    return new MyJVEditor (*this);
 }
 
 bool MyJVProcessor::hasEditor() const
 {
-    return false;
+    return true;
 }
 
 const juce::String MyJVProcessor::getName() const

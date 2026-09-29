@@ -17,13 +17,16 @@ FetchContent_MakeAvailable(JUCE)
 set(MYJV_CORE_SOURCES
     Source/DSP/SamplePlayer.cpp
     Source/Engine/AssetReclaimer.cpp
+    Source/Engine/AuditionVoice.cpp
     Source/Engine/SynthEngine.cpp
     Source/IO/LibraryIndex.cpp
     Source/IO/SampleImporter.cpp
     Source/Model/SampleLibrary.cpp
     Source/Params/ParameterLayout.cpp
     Source/Plugin/MyJVCrashHandler.cpp
-    Source/Plugin/MyJVLog.cpp)
+    Source/Plugin/MyJVEditor.cpp
+    Source/Plugin/MyJVLog.cpp
+    Source/Plugin/MyJVProcessor.cpp)
 
 set(MYJV_SOURCE_HEADERS
     Source/DSP/Biquad.h
@@ -37,6 +40,7 @@ set(MYJV_SOURCE_HEADERS
     Source/DSP/SamplePlayer.h
     Source/DSP/Smoother.h
     Source/Engine/AssetReclaimer.h
+    Source/Engine/AuditionVoice.h
     Source/Engine/ModulationMatrix.h
     Source/Engine/Note.h
     Source/Engine/SynthEngine.h
@@ -55,6 +59,7 @@ set(MYJV_SOURCE_HEADERS
     Source/Params/ParamSnapshot.h
     Source/Params/ParameterIDs.h
     Source/Plugin/MyJVCrashHandler.h
+    Source/Plugin/MyJVEditor.h
     Source/Plugin/MyJVLog.h
     Source/Plugin/MyJVProcessor.h)
 
@@ -73,8 +78,7 @@ juce_add_plugin(myJV
 
 target_sources(myJV PRIVATE
     ${MYJV_CORE_SOURCES}
-    ${MYJV_SOURCE_HEADERS}
-    Source/Plugin/MyJVProcessor.cpp)
+    ${MYJV_SOURCE_HEADERS})
 
 target_include_directories(myJV PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 
@@ -110,6 +114,7 @@ if(BUILD_TESTING)
 
     add_executable(myJV_tests
         Tests/asset_reclaimer_tests.cpp
+        Tests/audition_tests.cpp
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
         Tests/importer_tests.cpp
@@ -117,6 +122,7 @@ if(BUILD_TESTING)
         Tests/model_tests.cpp
         Tests/param_tests.cpp
         Tests/sample_player_tests.cpp
+        Tests/sampler_ui_tests.cpp
         Tests/test_main.cpp
         Tests/zone_selection_tests.cpp
         ${MYJV_CORE_SOURCES}
@@ -135,7 +141,12 @@ if(BUILD_TESTING)
             MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
             JUCE_WEB_BROWSER=0
             JUCE_USE_CURL=0
-            JUCE_MODAL_LOOPS_PERMITTED=1)
+            JUCE_MODAL_LOOPS_PERMITTED=1
+            JucePlugin_Name="myJV"
+            JucePlugin_VersionString="${PROJECT_VERSION}"
+            JucePlugin_WantsMidiInput=1
+            JucePlugin_ProducesMidiOutput=0
+            JucePlugin_IsMidiEffect=0)
 
     target_link_libraries(myJV_tests
         PRIVATE
