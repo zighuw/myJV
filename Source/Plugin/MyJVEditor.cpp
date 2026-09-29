@@ -2,6 +2,7 @@
 
 #include "Engine/AuditionVoice.h"
 #include "IO/LibraryIndex.h"
+#include "Model/ZoneMapping.h"
 #include "Plugin/MyJVProcessor.h"
 #include "Plugin/SamplerUiHelpers.h"
 
@@ -64,7 +65,7 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
       library (ownerProcessor.getSampleLibrary()),
       audition (ownerProcessor.getAuditionVoice())
 {
-    setSize (560, 380);
+    setSize (900, 620);
 
     addAndMakeVisible (list);
     list.setRowHeight (22);
@@ -79,11 +80,23 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
     addAndMakeVisible (auditionButton);
     auditionButton.onClick = [this] { toggleAudition(); };
 
+    addAndMakeVisible (autoMapButton);
+    autoMapButton.onClick = [this] { autoMapZones(); };
+
     addAndMakeVisible (statusLabel);
     statusLabel.setJustificationType (juce::Justification::centredLeft);
     statusLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
 
+    addAndMakeVisible (zoneMap);
+    zoneMap.onStatusMessage = [this] (juce::String message)
+    {
+        statusLabel.setText (message, juce::dontSendNotification);
+    };
+
+    addAndMakeVisible (zoneProperties);
+
     library.addChangeListener (this);
+    zoneDraft.addChangeListener (this);
     library.onScanComplete = [weak = juce::WeakReference<MyJVEditor> (this)] (const ScanResult& result)
     {
         if (auto* editor = weak.get())
@@ -109,6 +122,7 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
 MyJVEditor::~MyJVEditor()
 {
     stopTimer();
+    zoneDraft.removeChangeListener (this);
     library.removeChangeListener (this);
     library.onScanComplete = nullptr;
     chooser.reset();
@@ -133,14 +147,20 @@ void MyJVEditor::resized()
     area.removeFromTop (22);   // title
 
     auto bottom = area.removeFromBottom (26);
-    const auto buttonWidth = bottom.getWidth() / 4;
+    const auto buttonWidth = juce::jmax (1, bottom.getWidth() / 5);
 
     scanButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
     importButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
     auditionButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
+    autoMapButton.setBounds (bottom.removeFromLeft (buttonWidth).reduced (2));
 
     statusLabel.setBounds (area.removeFromBottom (24).reduced (2));
-    list.setBounds (area);
+
+    auto left = area.removeFromLeft (360);
+    list.setBounds (left.reduced (0, 2));
+
+    zoneProperties.setBounds (area.removeFromBottom (150).reduced (2));
+    zoneMap.setBounds (area.reduced (2));
 }
 
 int MyJVEditor::getNumRows()
@@ -175,10 +195,46 @@ void MyJVEditor::listBoxItemDoubleClicked (int, const juce::MouseEvent&)
     toggleAudition();
 }
 
-void MyJVEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+void MyJVEditor::changeListenerCallback (juce::ChangeBroadcaster* broadcaster)
 {
+    if (broadcaster == &zoneDraft)
+    {
+        updateStatus();
+        return;
+    }
+
     list.updateContent();
     updateStatus();
+}
+
+void MyJVEditor::selectedRowsChanged (int)
+{
+    const auto row = list.getSelectedRow();
+    const auto& entries = library.getEntries();
+
+    if (row < 0 || row >= (int) entries.size())
+    {
+        zoneMap.setPinnedSample (nullptr);
+        pendingPinHash.clear();
+        return;
+    }
+
+    const auto entry = entries[(std::size_t) row];
+    auto sample = library.findSample (entry.fileHash);
+    zoneMap.setPinnedSample (sample);
+
+    if (sample == nullptr && ! library.isScanning())
+    {
+        if (pendingPinHash != entry.fileHash)   // don't enqueue duplicate decodes
+        {
+            pendingPinHash = entry.fileHash;
+            beginImport (resolveEntryFile (entry), false);
+        }
+    }
+    else if (sample != nullptr)
+    {
+        pendingPinHash.clear();
+    }
 }
 
 void MyJVEditor::timerCallback()
@@ -251,6 +307,9 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
 
     if (! result.succeeded)
     {
+        if (! pendingPinHash.empty() && result.entry.fileHash == pendingPinHash)
+            pendingPinHash.clear();
+
         statusLabel.setText ("Import failed: " + juce::String (result.errorMessage), juce::dontSendNotification);
         updateStatus();
         return;
@@ -266,8 +325,11 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         return;
     }
 
+    const auto pinRequested = ! pendingPinHash.empty() && result.entry.fileHash == pendingPinHash;
+    const auto wantsSample = auditionAfterImport || pinRequested;
+
     auto entries = library.getEntries();
-    const auto outcome = SamplerUi::mergeImportedEntry (entries, result.entry, auditionAfterImport);
+    const auto outcome = SamplerUi::mergeImportedEntry (entries, result.entry, wantsSample);
 
     if (outcome.skippedDuplicate)
     {
@@ -279,6 +341,12 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
     library.addSample (result.entry.fileHash, result.sample);
     library.setEntries (std::move (entries));
     saveIndex();
+
+    if (pinRequested)
+    {
+        zoneMap.setPinnedSample (result.sample);
+        pendingPinHash.clear();
+    }
 
     if (auditionAfterImport && auditionToken == auditionRequestToken)
         audition.play (result.sample, result.entry.rootKey);
@@ -339,6 +407,31 @@ void MyJVEditor::toggleAudition()
     beginImport (resolveEntryFile (entry), true);
 }
 
+void MyJVEditor::autoMapZones()
+{
+    std::vector<LibraryEntry> source;
+    const auto row = list.getSelectedRow();
+    const auto& entries = library.getEntries();
+
+    if (row >= 0 && row < (int) entries.size())
+        source.push_back (entries[(std::size_t) row]);
+    else
+        source = entries;
+
+    if (source.empty())
+    {
+        statusLabel.setText ("No library entries to map", juce::dontSendNotification);
+        return;
+    }
+
+    ZoneMapping::AutoMapOptions options;
+    options.resolveSample = [this] (const std::string& fileHash) { return library.findSample (fileHash); };
+
+    zoneDraft.setZoneSet (ZoneMapping::buildAutoMappedZoneSet (source, options));
+    statusLabel.setText ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones",
+                         juce::dontSendNotification);
+}
+
 void MyJVEditor::saveIndex()
 {
     LibraryIndex::save (library.getRootDirectory().getChildFile ("library.json"), library.getEntries());
@@ -354,7 +447,8 @@ void MyJVEditor::updateStatus()
         text = "Importing (" + juce::String (importsInFlight) + ")...";
     else
         text = juce::String ((int) library.getEntries().size()) + " samples, "
-               + juce::String ((int) missingPaths.size()) + " missing";
+               + juce::String ((int) missingPaths.size()) + " missing, "
+               + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones";
 
     statusLabel.setText (text, juce::dontSendNotification);
     scanButton.setEnabled (! library.isScanning() && importsInFlight == 0);

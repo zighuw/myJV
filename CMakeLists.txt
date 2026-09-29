@@ -26,7 +26,9 @@ set(MYJV_CORE_SOURCES
     Source/Plugin/MyJVCrashHandler.cpp
     Source/Plugin/MyJVEditor.cpp
     Source/Plugin/MyJVLog.cpp
-    Source/Plugin/MyJVProcessor.cpp)
+    Source/Plugin/MyJVProcessor.cpp
+    Source/Plugin/ZoneMapView.cpp
+    Source/Plugin/ZonePropertiesPanel.cpp)
 
 set(MYJV_SOURCE_HEADERS
     Source/DSP/Biquad.h
@@ -54,6 +56,7 @@ set(MYJV_SOURCE_HEADERS
     Source/Model/Sample.h
     Source/Model/SampleLibrary.h
     Source/Model/Tone.h
+    Source/Model/ZoneMapping.h
     Source/Model/ZoneSet.h
     Source/Params/Calibration.h
     Source/Params/ParamSnapshot.h
@@ -61,7 +64,11 @@ set(MYJV_SOURCE_HEADERS
     Source/Plugin/MyJVCrashHandler.h
     Source/Plugin/MyJVEditor.h
     Source/Plugin/MyJVLog.h
-    Source/Plugin/MyJVProcessor.h)
+    Source/Plugin/MyJVProcessor.h
+    Source/Plugin/ZoneDraft.h
+    Source/Plugin/ZoneMapGeometry.h
+    Source/Plugin/ZoneMapView.h
+    Source/Plugin/ZonePropertiesPanel.h)
 
 juce_add_plugin(myJV
     COMPANY_NAME "myJV"
@@ -124,6 +131,8 @@ if(BUILD_TESTING)
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp
         Tests/test_main.cpp
+        Tests/zone_grid_tests.cpp
+        Tests/zone_mapping_tests.cpp
         Tests/zone_selection_tests.cpp
         ${MYJV_CORE_SOURCES}
         ${MYJV_SOURCE_HEADERS})
