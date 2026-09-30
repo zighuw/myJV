@@ -3,10 +3,12 @@
 #include "Engine/AssetReclaimer.h"
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <memory>
 #include <thread>
+#include <vector>
 
 namespace
 {
@@ -314,4 +316,119 @@ TEST_CASE ("publish and collect handle sustained churn")
     CHECK (reclaimer.pendingCount() == 1);
     CHECK (reclaimer.retiredCount() == 0);
     CHECK (reclaimer.activeForAudio()->id == 10000);
+}
+
+TEST_CASE ("two publishers and a collector keep one active entry and unique ids")
+{
+    AssetReclaimer reclaimer (0.0);
+    constexpr int kPerThread = 2000;
+    constexpr int kPublishers = 2;
+
+    std::atomic<bool> start { false };
+    std::atomic<bool> stop { false };
+    std::atomic<int> violations { 0 };
+    std::atomic<std::uint64_t> lastActiveId { 0 };
+
+    // Written by one publisher each, read only after both have been joined.
+    std::vector<std::uint64_t> ids[(std::size_t) kPublishers];
+
+    const auto publisher = [&] (int index)
+    {
+        auto& recorded = ids[(std::size_t) index];
+
+        while (! start.load (std::memory_order_acquire))
+        {
+        }
+
+        std::uint64_t previous = 0;
+
+        for (int i = 0; i < kPerThread; ++i)
+        {
+            const auto* published = reclaimer.publish (makeRuntime());
+
+            if (published == nullptr || published->id <= previous)
+            {
+                ++violations;   // a publisher must see strictly increasing ids
+                return;
+            }
+
+            previous = published->id;
+            recorded.push_back (previous);
+        }
+    };
+
+    const auto collector = [&]
+    {
+        while (! start.load (std::memory_order_acquire))
+        {
+        }
+
+        while (! stop.load (std::memory_order_relaxed))
+        {
+            // Read the retired count first: a publish only ever adds one entry
+            // to each count, so pending - retired cannot shrink between the two
+            // reads and "exactly one entry is not retired" is checked without a
+            // combined accessor.
+            const auto retired = reclaimer.retiredCount();
+            const auto pending = reclaimer.pendingCount();
+
+            if (pending - retired < 1)
+                ++violations;
+
+            if (const auto* active = reclaimer.activeForAudio())
+            {
+                const auto id = active->id;
+
+                if (id < lastActiveId.load (std::memory_order_relaxed))
+                    ++violations;   // the active id only ever moves forward
+
+                lastActiveId.store (id, std::memory_order_relaxed);
+                reclaimer.updateOldestAssetInUse (id);   // engine-style report
+            }
+
+            reclaimer.collect();
+        }
+    };
+
+    std::thread first (publisher, 0);
+    std::thread second (publisher, 1);
+    std::thread collectorThread (collector);
+
+    start.store (true, std::memory_order_release);
+
+    first.join();
+    second.join();
+
+    stop.store (true, std::memory_order_relaxed);
+    collectorThread.join();
+
+    CHECK (violations.load() == 0);
+
+    // Both publishers together must have produced exactly {1 .. 2 * kPerThread}:
+    // unique, gapless and therefore strictly monotonic overall.
+    std::vector<std::uint64_t> all;
+    all.reserve ((std::size_t) kPublishers * kPerThread);
+
+    for (const auto& recorded : ids)
+        all.insert (all.end(), recorded.begin(), recorded.end());
+
+    REQUIRE (all.size() == (std::size_t) kPublishers * kPerThread);
+    std::sort (all.begin(), all.end());
+
+    for (std::size_t i = 0; i < all.size(); ++i)
+        CHECK (all[i] == (std::uint64_t) i + 1);
+
+    // Deterministic quiescent check: report the newest id, reclaim everything
+    // retired, and the one-active-entry invariant becomes exact.
+    REQUIRE (reclaimer.activeForAudio() != nullptr);
+    const auto newestId = reclaimer.activeForAudio()->id;
+
+    CHECK (newestId == (std::uint64_t) (kPublishers * kPerThread));
+
+    reclaimer.updateOldestAssetInUse (newestId);
+    reclaimer.collect();
+
+    CHECK (reclaimer.pendingCount() == 1);
+    CHECK (reclaimer.retiredCount() == 0);
+    CHECK (reclaimer.activeForAudio()->id == newestId);
 }

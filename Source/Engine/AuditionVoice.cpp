@@ -15,7 +15,7 @@ void AuditionVoice::prepare (double newSampleRate) noexcept
     sampleRate.store (newSampleRate > 0.0 ? newSampleRate : 48000.0, std::memory_order_relaxed);
 }
 
-void AuditionVoice::play (std::shared_ptr<const Sample> sample, int note) noexcept
+void AuditionVoice::play (std::shared_ptr<const Sample> sample, int note)
 {
     if (sample == nullptr)
     {

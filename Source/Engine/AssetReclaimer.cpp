@@ -27,18 +27,24 @@ const PatchRuntime* AssetReclaimer::publish (std::shared_ptr<PatchRuntime> next)
     // Reserve and build the entry before touching the published state so a
     // failed allocation cannot break the one-active-entry invariant.
     Entry entry { std::move (next), timestamp, false };
+
+    // A runtime may be published exactly once: re-publishing the same object
+    // would retire it and then re-activate it, breaking the "exactly one active
+    // entry" accounting (code-review N-08).
+    jassert (entry.runtime->id == 0);
+
     pending.reserve (pending.size() + 1);
 
-        for (auto& existing : pending)
+    for (auto& existing : pending)
+    {
+        if (! existing.retired)
         {
-            if (! existing.retired)
-            {
-                existing.retired = true;
-                existing.retiredAtMs = timestamp;
-            }
+            existing.retired = true;
+            existing.retiredAtMs = timestamp;
         }
+    }
 
-        entry.runtime->id = nextId++;
+    entry.runtime->id = nextId++;
     pending.push_back (std::move (entry));
     active.store (pending.back().runtime.get(), std::memory_order_release);
 

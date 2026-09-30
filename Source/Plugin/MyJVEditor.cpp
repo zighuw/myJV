@@ -39,7 +39,18 @@ public:
         auto result = SampleImporter::importFile (source, libraryRoot);
 
         if (shouldExit())
+        {
+            // The result owns a shared_ptr<const Sample>, so it must be released
+            // on the message thread rather than here (ADR-020, code-review N-20).
+            // This branch only runs while the pool is shutting down (editor
+            // destruction), so the in-flight counter needs no adjustment.
+            juce::MessageManager::callAsync ([result = std::move (result)]() mutable
+            {
+                result.sample.reset();
+            });
+
             return jobHasFinished;
+        }
 
         juce::MessageManager::callAsync ([weak = weakEditor, auditionAfter = auditionAfterImport,
                                           auditionToken = token,

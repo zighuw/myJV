@@ -24,8 +24,9 @@ public:
     // Message thread (called before rendering starts / while stopped).
     void prepare (double newSampleRate) noexcept;
 
-    // Message thread only.
-    void play (std::shared_ptr<const Sample> sample, int note) noexcept;
+    // Message thread only. Not noexcept: the retired queue can allocate, and a
+    // throwing push_back must not terminate (code-review N-07).
+    void play (std::shared_ptr<const Sample> sample, int note);
     void stop() noexcept;
     void purgeRetired (double minimumAgeMs = kAuditionReleaseGraceMs) noexcept;
 
@@ -59,5 +60,13 @@ private:
     SamplePlayer player;
 };
 
+// Every atomic the audio thread touches must be lock-free (same convention as
+// AssetReclaimer.h, code-review N-06).
+static_assert (std::atomic<const Sample*>::is_always_lock_free,
+               "audition pending sample must be lock-free");
+static_assert (std::atomic<int>::is_always_lock_free,
+               "audition pending note must be lock-free");
 static_assert (std::atomic<double>::is_always_lock_free,
                "audition sample rate must be lock-free");
+static_assert (std::atomic<bool>::is_always_lock_free,
+               "audition start/stop/playing flags must be lock-free");

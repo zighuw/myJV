@@ -224,6 +224,18 @@ TEST_CASE ("audition survives concurrent rendering and sample swaps")
     CHECK (allSwapsResolved);
     CHECK_FALSE (weakFirst.expired());
     CHECK_FALSE (weakSecond.expired());
+
+    // The renderer may have exited before it observed the last play(), so
+    // isPlaying() is only meaningful after this thread deterministically
+    // consumes the pending start request (code-review N-12).
+    {
+        AudioBuffer<float> left (1, 256);
+        AudioBuffer<float> right (1, 256);
+        left.clear();
+        right.clear();
+        audition.render (left.getWritePointer (0), right.getWritePointer (0), 256);
+    }
+
     CHECK (audition.isPlaying());
 
     audition.stop();
