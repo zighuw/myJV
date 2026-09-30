@@ -258,9 +258,15 @@ void MyJVEditor::timerCallback()
 
 void MyJVEditor::scanLibrary()
 {
-    if (library.isScanning() || importsInFlight > 0)
+    if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanAlreadyRunningMessage());
+        return;
+    }
+
+    if (importsInFlight > 0)
+    {
+        showStatusMessage (SamplerUi::importInProgressMessage());
         return;
     }
 
@@ -271,9 +277,15 @@ void MyJVEditor::scanLibrary()
 
 void MyJVEditor::chooseImportFiles()
 {
-    if (library.isScanning() || importsInFlight > 0)
+    if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
+        return;
+    }
+
+    if (importsInFlight > 0)
+    {
+        showStatusMessage (SamplerUi::importInProgressMessage());
         return;
     }
 
@@ -295,13 +307,13 @@ void MyJVEditor::beginImport (const juce::File& file, bool auditionAfterImport)
 {
     if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
         return;
     }
 
     if (! file.existsAsFile())
     {
-        statusLabel.setText ("File not found: " + file.getFullPathName(), juce::dontSendNotification);
+        showStatusMessage (SamplerUi::fileNotFoundMessage (file.getFullPathName()));
         return;
     }
 
@@ -323,8 +335,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         if (! pendingPinHash.empty() && result.entry.fileHash == pendingPinHash)
             pendingPinHash.clear();
 
-        statusLabel.setText ("Import failed: " + juce::String (result.errorMessage), juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::importFailureMessage (result.errorMessage));
         return;
     }
 
@@ -333,8 +344,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         // Defensive: the UI gates this, but the library contract forbids index
         // mutations during a scan. Drop the import (the decoded sample is
         // released on the message thread).
-        statusLabel.setText ("Scan in progress; import skipped", juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
         return;
     }
 
@@ -346,8 +356,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
 
     if (outcome.skippedDuplicate)
     {
-        statusLabel.setText ("Already in library: " + juce::String (result.entry.path), juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::duplicateSkipMessage (result.entry.path));
         return;
     }
 
@@ -368,7 +377,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         audition.play (result.sample, result.entry.rootKey);
 
     list.updateContent();
-    updateStatus();
+    showStatusMessage (SamplerUi::importSuccessMessage (result.entry.path, result.entry.fileHash));
 }
 
 void MyJVEditor::handleScanResult (const ScanResult& result)
@@ -499,20 +508,30 @@ void MyJVEditor::saveIndex()
     LibraryIndex::save (library.getRootDirectory().getChildFile ("library.json"), library.getEntries());
 }
 
+void MyJVEditor::showStatusMessage (juce::String message)
+{
+    statusLine.setMessage (std::move (message), juce::Time::currentTimeMillis());
+    updateStatus();
+}
+
 void MyJVEditor::updateStatus()
 {
-    juce::String text;
+    juce::String stats;
 
     if (library.isScanning())
-        text = "Scanning library...";
+        stats = "Scanning library...";
     else if (importsInFlight > 0)
-        text = "Importing (" + juce::String (importsInFlight) + ")...";
+        stats = "Importing (" + juce::String (importsInFlight) + ")...";
     else
-        text = juce::String ((int) library.getEntries().size()) + " samples, "
+        stats = juce::String ((int) library.getEntries().size()) + " samples, "
                + juce::String ((int) missingPaths.size()) + " missing, "
                + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones";
 
-    statusLabel.setText (text, juce::dontSendNotification);
+    // A transient import/scan message outranks the periodic statistics until it
+    // expires (code-review I-1), so a result is never swallowed by the 10 Hz
+    // refresh or by the change listeners.
+    statusLabel.setText (statusLine.resolve (stats, juce::Time::currentTimeMillis()),
+                         juce::dontSendNotification);
     scanButton.setEnabled (! library.isScanning() && importsInFlight == 0);
     importButton.setEnabled (! library.isScanning() && importsInFlight == 0);
 }

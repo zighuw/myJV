@@ -5,6 +5,7 @@
 
 #include "IO/SampleImporter.h"
 #include "Model/SampleLibrary.h"
+#include "Plugin/SamplerUiHelpers.h"
 #include "Plugin/WaveformView.h"
 #include "Plugin/ZoneDraft.h"
 #include "Plugin/ZoneMapView.h"
@@ -51,6 +52,7 @@ private:
     void autoMapZones();
     void useFileLoop();
     void saveIndex();
+    void showStatusMessage (juce::String message);
     void updateStatus();
 
     juce::File resolveEntryFile (const LibraryEntry& entry) const;
@@ -74,6 +76,7 @@ private:
 
     std::unique_ptr<juce::FileChooser> chooser;
     juce::ThreadPool importPool { 1 };
+    SamplerUi::StatusLineState statusLine;
     std::set<std::string> missingPaths;
     std::string pendingPinHash;
     int importsInFlight = 0;
