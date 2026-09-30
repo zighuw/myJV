@@ -67,7 +67,9 @@ public:
 
         // One path for both outcomes: the result is always released on the
         // message thread, and a cancelled job (pool shutdown) simply does not
-        // reach applyImport (ADR-020, code-review N-20).
+        // reach applyImport (ADR-020, code-review N-20). Only the destructor's
+        // removeAllJobs(true, -1) can make shouldExit() true, so importsInFlight
+        // needs no adjustment here (the editor is going away).
         ImportDispatch::postToMessageThread (
             [weak] { return weak.get() != nullptr; },
             [weak, apply, auditionAfter, auditionToken] (ImportResult posted) mutable

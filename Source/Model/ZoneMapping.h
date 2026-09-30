@@ -174,7 +174,7 @@ inline ZoneSet buildAutoMappedZoneSet (const std::vector<LibraryEntry>& entries,
             zone.sample = resolve (entry);
             zone.keyLow = keyLow;
             zone.keyHigh = keyHigh;
-            zone.velLow = 1 + (i * kMidiVelocityMax) / count;
+            zone.velLow = kMidiVelocityMin + (i * kMidiVelocityMax) / count;
             zone.velHigh = ((i + 1) * kMidiVelocityMax) / count;
             zone.rootKeyOverride = rootKeyOverride;
             zone.loop = entry.loop;   // Zone::loop is the effective region (ADR-014)

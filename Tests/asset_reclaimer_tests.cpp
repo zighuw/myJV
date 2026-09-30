@@ -368,11 +368,12 @@ TEST_CASE ("two publishers and a collector keep one active entry and unique ids"
             // Read the retired count first: a publish only ever adds one entry
             // to each count, so pending - retired cannot shrink between the two
             // reads and "exactly one entry is not retired" is checked without a
-            // combined accessor.
+            // combined accessor. Before the first publish there is no active
+            // entry at all, so the invariant is vacuous and skipped.
             const auto retired = reclaimer.retiredCount();
             const auto pending = reclaimer.pendingCount();
 
-            if (pending - retired < 1)
+            if (pending > 0 && pending - retired < 1)
                 ++violations;
 
             if (const auto* active = reclaimer.activeForAudio())
