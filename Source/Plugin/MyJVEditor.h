@@ -18,6 +18,17 @@
 class MyJVProcessor;
 class AuditionVoice;
 
+// Message-thread hand-off for a background import (ADR-020). A free function so
+// the thread contract is testable without a live editor (M1-F07 / code-review
+// P-3): the result is published on the message thread, the consumer only runs
+// while the owner is still alive, and the owned sample is released there too.
+namespace ImportDispatch
+{
+void postToMessageThread (std::function<bool()> isAlive,
+                          std::function<void (ImportResult)> consumer,
+                          ImportResult result);
+}
+
 // Sampler editor: sample browser with import/scan/audition, the Zone map grid,
 // the waveform loop editor and the zone properties panel. Tabbed pages land in
 // M5. A single editor instance is assumed: SampleLibrary exposes one

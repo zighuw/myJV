@@ -1,8 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Plugin/MyJVEditor.h"
 #include "Plugin/SamplerUiHelpers.h"
 
+#include <atomic>
+#include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace
@@ -18,6 +22,33 @@ LibraryEntry makeEntry (const std::string& path, const std::string& hash)
     entry.loop.start = 10;
     entry.loop.end = 20;
     return entry;
+}
+
+// Stands in for the editor: the dispatch seam only needs a weak-referenceable
+// owner whose lifetime the test controls (M1-F07 / code-review P-3).
+class DispatchOwner
+{
+public:
+    JUCE_DECLARE_WEAK_REFERENCEABLE (DispatchOwner)
+};
+
+// Records where a sample was finally released, so the test can prove it happens
+// on the message thread.
+struct ReleaseRecord
+{
+    std::atomic<int> count { 0 };
+    std::atomic<std::thread::id> thread { std::thread::id {} };
+};
+
+std::shared_ptr<const Sample> makeProbedSample (const std::shared_ptr<ReleaseRecord>& record)
+{
+    return std::shared_ptr<const Sample> (new Sample(),
+                                          [record] (const Sample* sample)
+                                          {
+                                              record->thread.store (std::this_thread::get_id());
+                                              record->count.fetch_add (1);
+                                              delete sample;
+                                          });
 }
 }
 
@@ -204,4 +235,90 @@ TEST_CASE ("sampler ui reports entries dropped by scan deduplication")
     CHECK (SamplerUi::entriesDroppedMessage (1) == "Scan dropped 1 duplicate entry");
     CHECK (SamplerUi::entriesDroppedMessage (2) == "Scan dropped 2 duplicate entries");
     CHECK (SamplerUi::entriesDroppedMessage (17) == "Scan dropped 17 duplicate entries");
+}
+
+// --- import dispatch thread contract (M1-F07 / code-review P-3) --------------
+
+TEST_CASE ("import dispatch publishes the result on the message thread")
+{
+    const auto messageThread = std::this_thread::get_id();
+    std::atomic<std::thread::id> consumerThread {};
+    std::atomic<int> calls { 0 };
+
+    ImportResult result;
+    result.succeeded = true;
+
+    std::thread worker ([&result, &consumerThread, &calls]
+    {
+        ImportDispatch::postToMessageThread ([] { return true; },
+                                             [&consumerThread, &calls] (ImportResult)
+                                             {
+                                                 consumerThread.store (std::this_thread::get_id());
+                                                 ++calls;
+                                             },
+                                             std::move (result));
+    });
+
+    worker.join();
+
+    // The consumer is queued, not run on the posting thread.
+    CHECK (calls.load() == 0);
+
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    CHECK (calls.load() == 1);
+    CHECK (consumerThread.load() == messageThread);
+}
+
+TEST_CASE ("import dispatch skips a dead owner but still releases the sample")
+{
+    auto owner = std::make_unique<DispatchOwner>();
+    juce::WeakReference<DispatchOwner> weak (owner.get());
+
+    auto record = std::make_shared<ReleaseRecord>();
+    std::atomic<int> calls { 0 };
+
+    ImportResult result;
+    result.succeeded = true;
+    result.sample = makeProbedSample (record);
+
+    std::thread worker ([&result, weak, &calls]
+    {
+        ImportDispatch::postToMessageThread ([weak] { return weak.get() != nullptr; },
+                                             [&calls] (ImportResult) { ++calls; },
+                                             std::move (result));
+    });
+
+    owner.reset();   // the owner is gone before the message thread dispatches
+    worker.join();
+
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    CHECK (calls.load() == 0);                                     // no callback for a dead owner
+    CHECK (record->count.load() == 1);                             // but the result was released
+    CHECK (record->thread.load() == std::this_thread::get_id());   // ... on the message thread
+}
+
+TEST_CASE ("import dispatch hands the sample over without releasing it early")
+{
+    auto record = std::make_shared<ReleaseRecord>();
+    ImportResult received;
+
+    ImportResult result;
+    result.succeeded = true;
+    result.sample = makeProbedSample (record);
+
+    ImportDispatch::postToMessageThread ([] { return true; },
+                                         [&received] (ImportResult posted) { received = std::move (posted); },
+                                         std::move (result));
+
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    REQUIRE (received.sample != nullptr);
+    CHECK (received.succeeded);
+    CHECK (record->count.load() == 0);   // ownership moved to the consumer
+
+    received.sample.reset();
+    CHECK (record->count.load() == 1);   // released here, on the message thread
+    CHECK (record->thread.load() == std::this_thread::get_id());
 }

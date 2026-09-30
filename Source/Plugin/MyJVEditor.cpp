@@ -20,6 +20,28 @@ juce::File defaultLibraryRoot()
 }
 }
 
+namespace ImportDispatch
+{
+void postToMessageThread (std::function<bool()> isAlive,
+                          std::function<void (ImportResult)> consumer,
+                          ImportResult result)
+{
+    juce::MessageManager::callAsync ([isAlive = std::move (isAlive),
+                                      consumer = std::move (consumer),
+                                      result = std::move (result)]() mutable
+    {
+        // Both checks run here, on the message thread: a destroyed owner must
+        // never receive a callback.
+        if (isAlive != nullptr && isAlive() && consumer != nullptr)
+            consumer (std::move (result));
+
+        // Whether it was consumed or not, whatever the result still owns is
+        // released on the message thread (ADR-020, code-review N-20).
+        result.sample.reset();
+    });
+}
+}
+
 class MyJVEditor::ImportJob final : public juce::ThreadPoolJob
 {
 public:
@@ -38,27 +60,25 @@ public:
     {
         auto result = SampleImporter::importFile (source, libraryRoot);
 
-        if (shouldExit())
-        {
-            // The result owns a shared_ptr<const Sample>, so it must be released
-            // on the message thread rather than here (ADR-020, code-review N-20).
-            // This branch only runs while the pool is shutting down (editor
-            // destruction), so the in-flight counter needs no adjustment.
-            juce::MessageManager::callAsync ([result = std::move (result)]() mutable
+        const auto weak = weakEditor;
+        const auto apply = ! shouldExit();
+        const auto auditionAfter = auditionAfterImport;
+        const auto auditionToken = token;
+
+        // One path for both outcomes: the result is always released on the
+        // message thread, and a cancelled job (pool shutdown) simply does not
+        // reach applyImport (ADR-020, code-review N-20).
+        ImportDispatch::postToMessageThread (
+            [weak] { return weak.get() != nullptr; },
+            [weak, apply, auditionAfter, auditionToken] (ImportResult posted) mutable
             {
-                result.sample.reset();
-            });
-
-            return jobHasFinished;
-        }
-
-        juce::MessageManager::callAsync ([weak = weakEditor, auditionAfter = auditionAfterImport,
-                                          auditionToken = token,
-                                          result = std::move (result)]() mutable
-        {
-            if (auto* editor = weak.get())
-                editor->applyImport (std::move (result), auditionAfter, auditionToken);
-        });
+                if (auto* editor = weak.get())
+                {
+                    if (apply)
+                        editor->applyImport (std::move (posted), auditionAfter, auditionToken);
+                }
+            },
+            std::move (result));
 
         return jobHasFinished;
     }

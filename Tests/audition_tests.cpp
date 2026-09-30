@@ -39,6 +39,27 @@ Sample makeSample (int frames, bool withLoop = false, float value = 0.25f)
     return sample;
 }
 
+// Keeps a background scan in flight for the duration of a render loop.
+void writeBigFile (const File& file, int sizeBytes)
+{
+    file.deleteFile();
+
+    std::unique_ptr<FileOutputStream> stream (file.createOutputStream());
+    REQUIRE (stream != nullptr);
+
+    const std::vector<char> chunk (64 * 1024, 0);
+    int written = 0;
+
+    while (written < sizeBytes)
+    {
+        const auto numBytes = jmin ((int) chunk.size(), sizeBytes - written);
+        REQUIRE (stream->write (chunk.data(), (std::size_t) numBytes));
+        written += numBytes;
+    }
+
+    stream->flush();
+}
+
 void writeWavFile (const File& file, int frames = 64)
 {
     const auto signal = makeSample (frames);
@@ -292,6 +313,70 @@ TEST_CASE ("processor stays silent while a library scan runs")
 
     library.waitForScanToFinish();
     CHECK (library.getEntries().size() == 1);
+
+    directory.deleteRecursively (false);
+}
+
+TEST_CASE ("audio keeps its contract while a scan is hashing")
+{
+    // P-2: the audio path shares no state with the library, so rendering must
+    // keep working - and keep its established behaviour - while a background
+    // scan is busy. Contract assertions only, no wall-clock thresholds.
+    const auto directory = File::getSpecialLocation (File::tempDirectory).getChildFile ("myJVUiScanContractTests");
+    directory.deleteRecursively (false);
+    REQUIRE (directory.createDirectory().wasOk());
+    writeWavFile (directory.getChildFile ("Tone.wav"));
+
+    // 16 MiB keeps the scan in flight for the whole render loop below.
+    writeBigFile (directory.getChildFile ("Big.wav"), 16 * 1024 * 1024);
+
+    MyJVProcessor processor;
+    processor.prepareToPlay (kAuditionSampleRate, 512);
+
+    auto& library = processor.getSampleLibrary();
+    library.setRootDirectory (directory);
+    REQUIRE (library.scanNow().succeeded);
+
+    const auto entriesBefore = library.getEntries();
+    REQUIRE (entriesBefore.size() == 2);
+
+    auto& audition = processor.getAuditionVoice();
+    audition.prepare (kAuditionSampleRate);
+    audition.play (std::make_shared<Sample> (makeSample ((int) kAuditionSampleRate)), 60);
+
+    library.startScan();
+    REQUIRE (library.isScanning());
+
+    AudioBuffer<float> buffer (6, 512);
+    MidiBuffer midi;
+
+    for (int block = 0; block < 20; ++block)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);   // must return on every block
+
+        // The audition is mixed into Main only and is not silenced by the scan.
+        CHECK (buffer.getMagnitude (0, 0, 512) > 0.0f);
+        CHECK (buffer.getMagnitude (1, 0, 512) > 0.0f);
+        CHECK (buffer.getMagnitude (2, 0, 512) == 0.0f);
+        CHECK (buffer.getMagnitude (5, 0, 512) == 0.0f);
+    }
+
+    // The scan was still running throughout, and rendering touched no library state.
+    CHECK (library.isScanning());
+
+    const auto entriesAfter = library.getEntries();
+    REQUIRE (entriesAfter.size() == entriesBefore.size());
+
+    for (std::size_t i = 0; i < entriesBefore.size(); ++i)
+    {
+        CHECK (entriesAfter[i].path == entriesBefore[i].path);
+        CHECK (entriesAfter[i].fileHash == entriesBefore[i].fileHash);
+    }
+
+    library.cancelScan();
+    library.waitForScanToFinish();
+    audition.stop();
 
     directory.deleteRecursively (false);
 }
