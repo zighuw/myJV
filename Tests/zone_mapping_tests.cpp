@@ -46,6 +46,27 @@ TEST_CASE ("invalid note names are rejected")
     CHECK (ZoneMapping::parseRootKeyFromFileName (".wav") == -1);
 }
 
+TEST_CASE ("note names are only parsed at token boundaries")
+{
+    // A letter+digit inside a word is not a note name: "take2" -> e2, "mic2" -> c2
+    // and "Analog2" -> g2 must neither override a valid token nor invent a root
+    // key (code-review I-2). Values below are C4 = 60 per ADR-021.
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano_C4_Take2.wav") == 60);   // was E2 = 40
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano_C4_mic2.wav") == 60);    // was C2 = 36
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano_C4-Take2.wav") == 60);   // was E2 = 40
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Analog2.wav") == -1);          // was G2 = 43
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Snare2.wav") == -1);           // was E2 = 40
+
+    // Tokens that do start a word (or the stem) still parse, so the boundary rule
+    // does not over-restrict: existing positives keep their values.
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Kick_C4_v2.wav") == 60);
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano2_C4.wav") == 60);
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("C4_G5.wav") == 79);            // last token wins
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano_C+4.wav") == 61);        // '+' sharp
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Piano_A+4.wav") == 70);
+    CHECK (ZoneMapping::parseRootKeyFromFileName ("Bass-Db2.wav") == 37);         // '-' separator
+}
+
 TEST_CASE ("automap is empty for an empty library")
 {
     ZoneMapping::AutoMapOptions options;
