@@ -146,9 +146,11 @@ float SamplePlayer::getNextSample() noexcept
 
     if (loopEnabled)
     {
-        // Steady-state span: the crossfade region is skipped after each wrap, so
-        // the modulo must use loopLength - crossfade, otherwise large increments
-        // (tiny loops at high pitch) can escape the region.
+        // Steady-state span: after a wrap the loop head [loopStart,
+        // loopStart + crossfadeSamples) is skipped, because those frames have
+        // already been blended into the loop tail by the crossfade. The modulo
+        // therefore uses loopLength - crossfade; otherwise large increments
+        // (tiny loops at high pitch) could escape the region.
         const auto span = (double) (loopEnd - loopStart - crossfadeSamples);
 
         if (span > 0.0)

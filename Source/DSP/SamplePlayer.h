@@ -12,10 +12,13 @@ public:
 
     // RT-safe
     void start (const Sample& sample, const Zone& zone, int note, double engineSampleRate) noexcept;
+
+    // RT-safe: M2 audio-thread Note-Off call site.
     void stop() noexcept;
 
     // Bend/mod/slide hook. The value persists across start() calls, so a pooled
     // voice must refresh it at Note-On.
+    // RT-safe: M2 audio-thread Note-On call site.
     void setPitchOffsetSemitones (float semitones) noexcept;
 
     // RT-safe

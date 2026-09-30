@@ -454,13 +454,56 @@ TEST_CASE ("restarting a player resets its playback state")
     CHECK (player.getNextSample() == 0.0f);   // fade-in restarts from zero
 }
 
-TEST_CASE ("reverse one-shot playback finishes after the first frame")
+TEST_CASE ("reverse one-shot playback covers the whole sample")
 {
     const auto sample = makeSineSample (480);
     SamplePlayer player;
     player.start (sample, makeZone (LoopMode::Off, 0, 0, 0, true), 60, kPlayerSampleRate);
 
     CHECK (countUntilFinished (player) == 480);
+}
+
+TEST_CASE ("loop end at the sample end with crossfade wraps in range")
+{
+    const auto sample = makeRampSample (480);
+
+    // loopEnd == numSamples with crossfadeSamples > 0 is the tightest loop edge:
+    // the wrap must land exactly on loopStart + crossfade (the loop head has
+    // already been blended into the tail) and must never read past the last
+    // frame (code-review N-12).
+    float maxMagnitude = 0.0f;
+
+    for (int i = 0; i < 480; ++i)
+        maxMagnitude = juce::jmax (maxMagnitude, std::abs (sample.data.getSample (0, i)));
+
+    for (const int crossfade : { 8, 240 })   // 240 == (loopEnd - loopStart) / 2
+    {
+        SamplePlayer player;
+        player.start (sample, makeZone (LoopMode::Forward, 0, 480, crossfade), 60, kPlayerSampleRate);
+
+        const auto output = render (player, 1000);
+        const auto span = 480 - crossfade;
+
+        REQUIRE (player.isActive());
+
+        // The last frame before the wrap is the documented tail/head blend.
+        const auto mix = (float) (crossfade - 1) / (float) crossfade;
+        const auto blendedTail = (1.0f - mix) * sample.data.getSample (0, 479)
+                                 + mix * sample.data.getSample (0, crossfade - 1);
+        CHECK (output[479] == Catch::Approx (blendedTail).margin (1.0e-6f));
+
+        // The wrap resumes at loopStart + crossfade, in range, and is stable on
+        // the following pass.
+        CHECK (output[480] == Catch::Approx (sample.data.getSample (0, crossfade)).margin (1.0e-6f));
+        CHECK (output[(std::size_t) (480 + span)]
+               == Catch::Approx (sample.data.getSample (0, crossfade)).margin (1.0e-6f));
+
+        for (const auto value : output)
+        {
+            CHECK (std::isfinite (value));
+            CHECK (std::abs (value) <= maxMagnitude + 1.0e-4f);
+        }
+    }
 }
 
 TEST_CASE ("degenerate samples are handled safely")

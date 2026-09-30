@@ -450,7 +450,7 @@ TEST_CASE ("scan does not follow directory links")
     const auto link = directory.getChildFile ("loop");
 
     if (! createDirectoryLink (link, directory))
-        return;   // platform without link-creation privileges (e.g. Windows without admin)
+        SKIP ("需要目录链接权限（Windows 非管理员/无特权平台）");   // code-review I-5: was a silent `return`
 
     REQUIRE (link.getChildFile ("A.wav").existsAsFile());
 

@@ -216,7 +216,9 @@ TEST_CASE ("automap keeps named and unnamed entries separate")
     CHECK (zoneSet.zones[0].keyLow == 0);
     CHECK (zoneSet.zones[0].keyHigh == 127);
     CHECK (zoneSet.zones[0].rootKeyOverride == -1);
-    CHECK ((zoneSet.zones[0].sample == nullptr || zoneSet.zones[0].sample->fileHash == "bb"));
+    // No resolver was passed, so no zone may carry a sample (code-review N-11).
+    CHECK (zoneSet.zones[0].sample == nullptr);
+    CHECK (zoneSet.zones[1].sample == nullptr);
     CHECK (zoneSet.zones[1].keyLow == 60);
     CHECK (zoneSet.zones[1].keyHigh == 60);
 }
