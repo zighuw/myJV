@@ -8,13 +8,17 @@
 // zone rectangles, hit testing and clamped drag/edit operations.
 namespace ZoneMapGeometry
 {
+// Number of MIDI keys covered by the grid. It is a count, not a note number, so
+// it gets its own name instead of a bare 128 (code-review N-14).
+inline constexpr int kMidiKeyCount = kMidiNoteMax - kMidiNoteMin + 1;
+
 inline int keyAtX (int x, int width)
 {
     if (width <= 0)
         return 0;
 
     const auto clamped = juce::jlimit (0, width - 1, x);
-    return clamped * 128 / width;
+    return clamped * kMidiKeyCount / width;
 }
 
 // The velocity axis is inverted: the top of the grid is velocity 127.
@@ -29,8 +33,8 @@ inline int velocityAtY (int y, int height)
 
 inline juce::Rectangle<int> rectForZone (const Zone& zone, int width, int height)
 {
-    const auto x0 = zone.keyLow * width / 128;
-    const auto x1 = (zone.keyHigh + 1) * width / 128;
+    const auto x0 = zone.keyLow * width / kMidiKeyCount;
+    const auto x1 = (zone.keyHigh + 1) * width / kMidiKeyCount;
     const auto y0 = (kMidiVelocityMax - zone.velHigh) * height / kMidiVelocityMax;
     const auto y1 = (kMidiVelocityMax - zone.velLow + 1) * height / kMidiVelocityMax;
     return { x0, y0, juce::jmax (1, x1 - x0), juce::jmax (1, y1 - y0) };

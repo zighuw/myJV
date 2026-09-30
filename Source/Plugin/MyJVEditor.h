@@ -18,8 +18,11 @@
 class MyJVProcessor;
 class AuditionVoice;
 
-// First editor skeleton: a single Sampler panel (sample browser, scan/import,
-// basic audition). Tabbed pages land in M5.
+// Sampler editor: sample browser with import/scan/audition, the Zone map grid,
+// the waveform loop editor and the zone properties panel. Tabbed pages land in
+// M5. A single editor instance is assumed: SampleLibrary exposes one
+// onScanComplete callback, so a second editor would overwrite it (code-review
+// N-15).
 class MyJVEditor final : public juce::AudioProcessorEditor,
                          private juce::ListBoxModel,
                          private juce::ChangeListener,

@@ -105,14 +105,14 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
     addAndMakeVisible (zoneMap);
     zoneMap.onStatusMessage = [this] (juce::String message)
     {
-        statusLabel.setText (message, juce::dontSendNotification);
+        showStatusMessage (std::move (message));
     };
 
     addAndMakeVisible (zoneProperties);
     addAndMakeVisible (waveform);
     waveform.onStatusMessage = [this] (juce::String message)
     {
-        statusLabel.setText (message, juce::dontSendNotification);
+        showStatusMessage (std::move (message));
     };
 
     library.addChangeListener (this);
@@ -324,6 +324,10 @@ void MyJVEditor::beginImport (const juce::File& file, bool auditionAfterImport)
 
     if (! file.existsAsFile())
     {
+        // The lazy decode cannot proceed, so drop the pin: otherwise selecting
+        // the row again would be suppressed as a duplicate request (code-review
+        // N-16).
+        pendingPinHash.clear();
         showStatusMessage (SamplerUi::fileNotFoundMessage (file.getFullPathName()));
         return;
     }
@@ -400,13 +404,10 @@ void MyJVEditor::handleScanResult (const ScanResult& result)
 
     list.updateContent();
 
-    // Entries may have changed (loop/thumbnail/length) or disappeared.
-    const auto row = list.getSelectedRow();
-
-    if (row >= 0 && row < (int) library.getEntries().size())
-        waveform.setEntry (library.getEntries()[(std::size_t) row]);
-    else
-        waveform.clearEntry();
+    // Entries may have changed (loop/thumbnail/length) or disappeared; re-running
+    // the selection path also retries a pin whose decode was refused while the
+    // scan was in flight (code-review N-16).
+    selectedRowsChanged (list.getSelectedRow());
 
     // A scan can drop already-indexed entries through deduplication; the files
     // stay on disk, so the shrink must be visible (code-review I-6).
@@ -437,7 +438,7 @@ void MyJVEditor::toggleAudition()
 
     if (row < 0 || row >= (int) entries.size())
     {
-        statusLabel.setText ("Select a sample first", juce::dontSendNotification);
+        showStatusMessage ("Select a sample first");
         return;
     }
 
@@ -470,7 +471,7 @@ void MyJVEditor::autoMapZones()
 
     if (source.empty())
     {
-        statusLabel.setText ("No library entries to map", juce::dontSendNotification);
+        showStatusMessage ("No library entries to map");
         return;
     }
 
@@ -478,8 +479,7 @@ void MyJVEditor::autoMapZones()
     options.resolveSample = [this] (const std::string& fileHash) { return library.findSample (fileHash); };
 
     zoneDraft.setZoneSet (ZoneMapping::buildAutoMappedZoneSet (source, options));
-    statusLabel.setText ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones",
-                         juce::dontSendNotification);
+    showStatusMessage ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones");
 }
 
 void MyJVEditor::useFileLoop()
@@ -491,7 +491,7 @@ void MyJVEditor::useFileLoop()
 
     if (row < 0 || row >= (int) entries.size() || selected == nullptr || index < 0)
     {
-        statusLabel.setText ("Select a sample and a zone first", juce::dontSendNotification);
+        showStatusMessage ("Select a sample and a zone first");
         return;
     }
 
@@ -499,7 +499,7 @@ void MyJVEditor::useFileLoop()
 
     if (zone.sample != nullptr && zone.sample->fileHash != entries[(std::size_t) row].fileHash)
     {
-        statusLabel.setText ("Selected zone uses a different sample", juce::dontSendNotification);
+        showStatusMessage ("Selected zone uses a different sample");
         return;
     }
 
@@ -509,14 +509,14 @@ void MyJVEditor::useFileLoop()
 
     if (loop.end <= loop.start)
     {
-        statusLabel.setText ("File has no valid loop", juce::dontSendNotification);
+        showStatusMessage ("File has no valid loop");
         return;
     }
 
     zone.loop = loop;
     zoneDraft.updateZone (index, zone);
 
-    statusLabel.setText ("File loop applied to the selected zone", juce::dontSendNotification);
+    showStatusMessage ("File loop applied to the selected zone");
 }
 
 void MyJVEditor::saveIndex()

@@ -112,6 +112,11 @@ void WaveformView::loadThumbnail()
     }
 }
 
+// Known limit (code-review N-13): the peak cache is rebuilt on the message
+// thread, so the first display of a very long sample costs O(width * samples *
+// channels) - for the 50M-frame ceiling that is a perceptible hitch. The
+// background-precompute option is deferred to M5-04, which revisits the peak
+// strategy together with zoom/scroll. The displayed peaks themselves are exact.
 void WaveformView::rebuildPeaks()
 {
     const auto width = getWidth();
@@ -186,7 +191,7 @@ void WaveformView::paint (juce::Graphics& g)
 
     // Crossfade drag lane.
     g.setColour (juce::Colours::white.withAlpha (0.06f));
-    g.fillRect (bounds.withTop (bounds.getBottom() - 16));
+    g.fillRect (bounds.withTop (bounds.getBottom() - LoopEditGeometry::kCrossfadeLaneHeight));
 
     if (! hasEntry)
     {
