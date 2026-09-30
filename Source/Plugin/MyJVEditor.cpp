@@ -20,6 +20,28 @@ juce::File defaultLibraryRoot()
 }
 }
 
+namespace ImportDispatch
+{
+void postToMessageThread (std::function<bool()> isAlive,
+                          std::function<void (ImportResult)> consumer,
+                          ImportResult result)
+{
+    juce::MessageManager::callAsync ([isAlive = std::move (isAlive),
+                                      consumer = std::move (consumer),
+                                      result = std::move (result)]() mutable
+    {
+        // Both checks run here, on the message thread: a destroyed owner must
+        // never receive a callback.
+        if (isAlive != nullptr && isAlive() && consumer != nullptr)
+            consumer (std::move (result));
+
+        // Whether it was consumed or not, whatever the result still owns is
+        // released on the message thread (ADR-020, code-review N-20).
+        result.sample.reset();
+    });
+}
+}
+
 class MyJVEditor::ImportJob final : public juce::ThreadPoolJob
 {
 public:
@@ -38,16 +60,27 @@ public:
     {
         auto result = SampleImporter::importFile (source, libraryRoot);
 
-        if (shouldExit())
-            return jobHasFinished;
+        const auto weak = weakEditor;
+        const auto apply = ! shouldExit();
+        const auto auditionAfter = auditionAfterImport;
+        const auto auditionToken = token;
 
-        juce::MessageManager::callAsync ([weak = weakEditor, auditionAfter = auditionAfterImport,
-                                          auditionToken = token,
-                                          result = std::move (result)]() mutable
-        {
-            if (auto* editor = weak.get())
-                editor->applyImport (std::move (result), auditionAfter, auditionToken);
-        });
+        // One path for both outcomes: the result is always released on the
+        // message thread, and a cancelled job (pool shutdown) simply does not
+        // reach applyImport (ADR-020, code-review N-20). Only the destructor's
+        // removeAllJobs(true, -1) can make shouldExit() true, so importsInFlight
+        // needs no adjustment here (the editor is going away).
+        ImportDispatch::postToMessageThread (
+            [weak] { return weak.get() != nullptr; },
+            [weak, apply, auditionAfter, auditionToken] (ImportResult posted) mutable
+            {
+                if (auto* editor = weak.get())
+                {
+                    if (apply)
+                        editor->applyImport (std::move (posted), auditionAfter, auditionToken);
+                }
+            },
+            std::move (result));
 
         return jobHasFinished;
     }
@@ -94,14 +127,14 @@ MyJVEditor::MyJVEditor (MyJVProcessor& ownerProcessor)
     addAndMakeVisible (zoneMap);
     zoneMap.onStatusMessage = [this] (juce::String message)
     {
-        statusLabel.setText (message, juce::dontSendNotification);
+        showStatusMessage (std::move (message));
     };
 
     addAndMakeVisible (zoneProperties);
     addAndMakeVisible (waveform);
     waveform.onStatusMessage = [this] (juce::String message)
     {
-        statusLabel.setText (message, juce::dontSendNotification);
+        showStatusMessage (std::move (message));
     };
 
     library.addChangeListener (this);
@@ -258,9 +291,15 @@ void MyJVEditor::timerCallback()
 
 void MyJVEditor::scanLibrary()
 {
-    if (library.isScanning() || importsInFlight > 0)
+    if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanAlreadyRunningMessage());
+        return;
+    }
+
+    if (importsInFlight > 0)
+    {
+        showStatusMessage (SamplerUi::importInProgressMessage());
         return;
     }
 
@@ -271,9 +310,15 @@ void MyJVEditor::scanLibrary()
 
 void MyJVEditor::chooseImportFiles()
 {
-    if (library.isScanning() || importsInFlight > 0)
+    if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
+        return;
+    }
+
+    if (importsInFlight > 0)
+    {
+        showStatusMessage (SamplerUi::importInProgressMessage());
         return;
     }
 
@@ -295,13 +340,17 @@ void MyJVEditor::beginImport (const juce::File& file, bool auditionAfterImport)
 {
     if (library.isScanning())
     {
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
         return;
     }
 
     if (! file.existsAsFile())
     {
-        statusLabel.setText ("File not found: " + file.getFullPathName(), juce::dontSendNotification);
+        // The lazy decode cannot proceed, so drop the pin: otherwise selecting
+        // the row again would be suppressed as a duplicate request (code-review
+        // N-16).
+        pendingPinHash.clear();
+        showStatusMessage (SamplerUi::fileNotFoundMessage (file.getFullPathName()));
         return;
     }
 
@@ -323,8 +372,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         if (! pendingPinHash.empty() && result.entry.fileHash == pendingPinHash)
             pendingPinHash.clear();
 
-        statusLabel.setText ("Import failed: " + juce::String (result.errorMessage), juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::importFailureMessage (result.errorMessage));
         return;
     }
 
@@ -333,8 +381,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         // Defensive: the UI gates this, but the library contract forbids index
         // mutations during a scan. Drop the import (the decoded sample is
         // released on the message thread).
-        statusLabel.setText ("Scan in progress; import skipped", juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::scanInProgressMessage());
         return;
     }
 
@@ -346,8 +393,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
 
     if (outcome.skippedDuplicate)
     {
-        statusLabel.setText ("Already in library: " + juce::String (result.entry.path), juce::dontSendNotification);
-        updateStatus();
+        showStatusMessage (SamplerUi::duplicateSkipMessage (result.entry.path));
         return;
     }
 
@@ -368,7 +414,7 @@ void MyJVEditor::applyImport (ImportResult result, bool auditionAfterImport, int
         audition.play (result.sample, result.entry.rootKey);
 
     list.updateContent();
-    updateStatus();
+    showStatusMessage (SamplerUi::importSuccessMessage (result.entry.path, result.entry.fileHash));
 }
 
 void MyJVEditor::handleScanResult (const ScanResult& result)
@@ -380,15 +426,17 @@ void MyJVEditor::handleScanResult (const ScanResult& result)
 
     list.updateContent();
 
-    // Entries may have changed (loop/thumbnail/length) or disappeared.
-    const auto row = list.getSelectedRow();
+    // Entries may have changed (loop/thumbnail/length) or disappeared; re-running
+    // the selection path also retries a pin whose decode was refused while the
+    // scan was in flight (code-review N-16).
+    selectedRowsChanged (list.getSelectedRow());
 
-    if (row >= 0 && row < (int) library.getEntries().size())
-        waveform.setEntry (library.getEntries()[(std::size_t) row]);
+    // A scan can drop already-indexed entries through deduplication; the files
+    // stay on disk, so the shrink must be visible (code-review I-6).
+    if (result.entriesDropped > 0)
+        showStatusMessage (SamplerUi::entriesDroppedMessage (result.entriesDropped));
     else
-        waveform.clearEntry();
-
-    updateStatus();
+        updateStatus();
 }
 
 void MyJVEditor::toggleAudition()
@@ -412,7 +460,7 @@ void MyJVEditor::toggleAudition()
 
     if (row < 0 || row >= (int) entries.size())
     {
-        statusLabel.setText ("Select a sample first", juce::dontSendNotification);
+        showStatusMessage ("Select a sample first");
         return;
     }
 
@@ -445,7 +493,7 @@ void MyJVEditor::autoMapZones()
 
     if (source.empty())
     {
-        statusLabel.setText ("No library entries to map", juce::dontSendNotification);
+        showStatusMessage ("No library entries to map");
         return;
     }
 
@@ -453,8 +501,7 @@ void MyJVEditor::autoMapZones()
     options.resolveSample = [this] (const std::string& fileHash) { return library.findSample (fileHash); };
 
     zoneDraft.setZoneSet (ZoneMapping::buildAutoMappedZoneSet (source, options));
-    statusLabel.setText ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones",
-                         juce::dontSendNotification);
+    showStatusMessage ("Auto-mapped " + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones");
 }
 
 void MyJVEditor::useFileLoop()
@@ -466,7 +513,7 @@ void MyJVEditor::useFileLoop()
 
     if (row < 0 || row >= (int) entries.size() || selected == nullptr || index < 0)
     {
-        statusLabel.setText ("Select a sample and a zone first", juce::dontSendNotification);
+        showStatusMessage ("Select a sample and a zone first");
         return;
     }
 
@@ -474,7 +521,7 @@ void MyJVEditor::useFileLoop()
 
     if (zone.sample != nullptr && zone.sample->fileHash != entries[(std::size_t) row].fileHash)
     {
-        statusLabel.setText ("Selected zone uses a different sample", juce::dontSendNotification);
+        showStatusMessage ("Selected zone uses a different sample");
         return;
     }
 
@@ -484,14 +531,14 @@ void MyJVEditor::useFileLoop()
 
     if (loop.end <= loop.start)
     {
-        statusLabel.setText ("File has no valid loop", juce::dontSendNotification);
+        showStatusMessage ("File has no valid loop");
         return;
     }
 
     zone.loop = loop;
     zoneDraft.updateZone (index, zone);
 
-    statusLabel.setText ("File loop applied to the selected zone", juce::dontSendNotification);
+    showStatusMessage ("File loop applied to the selected zone");
 }
 
 void MyJVEditor::saveIndex()
@@ -499,20 +546,30 @@ void MyJVEditor::saveIndex()
     LibraryIndex::save (library.getRootDirectory().getChildFile ("library.json"), library.getEntries());
 }
 
+void MyJVEditor::showStatusMessage (juce::String message)
+{
+    statusLine.setMessage (std::move (message), juce::Time::currentTimeMillis());
+    updateStatus();
+}
+
 void MyJVEditor::updateStatus()
 {
-    juce::String text;
+    juce::String stats;
 
     if (library.isScanning())
-        text = "Scanning library...";
+        stats = "Scanning library...";
     else if (importsInFlight > 0)
-        text = "Importing (" + juce::String (importsInFlight) + ")...";
+        stats = "Importing (" + juce::String (importsInFlight) + ")...";
     else
-        text = juce::String ((int) library.getEntries().size()) + " samples, "
+        stats = juce::String ((int) library.getEntries().size()) + " samples, "
                + juce::String ((int) missingPaths.size()) + " missing, "
                + juce::String ((int) zoneDraft.getZoneSet().zones.size()) + " zones";
 
-    statusLabel.setText (text, juce::dontSendNotification);
+    // A transient import/scan message outranks the periodic statistics until it
+    // expires (code-review I-1), so a result is never swallowed by the 10 Hz
+    // refresh or by the change listeners.
+    statusLabel.setText (statusLine.resolve (stats, juce::Time::currentTimeMillis()),
+                         juce::dontSendNotification);
     scanButton.setEnabled (! library.isScanning() && importsInFlight == 0);
     importButton.setEnabled (! library.isScanning() && importsInFlight == 0);
 }

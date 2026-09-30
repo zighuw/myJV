@@ -147,6 +147,23 @@ TEST_CASE ("loop handles are reachable for empty and zero-crossfade loops")
            == LoopEditGeometry::LoopHandle::loopEnd);
 }
 
+TEST_CASE ("the crossfade lane height is shared with the painter")
+{
+    // The bottom lane is exactly kCrossfadeLaneHeight tall, so the painter and
+    // the hit test cannot drift apart (code-review N-13).
+    constexpr int kHeight = 60;
+    const auto lane = LoopEditGeometry::kCrossfadeLaneHeight;
+    const auto loop = makeLoop (100, 600, 0);
+
+    REQUIRE (lane > 0);
+    REQUIRE (lane < kHeight);
+
+    CHECK (LoopEditGeometry::handleAt (loop, 1000, { 50, kHeight - lane }, 100, kHeight)
+           == LoopEditGeometry::LoopHandle::crossfade);
+    CHECK (LoopEditGeometry::handleAt (loop, 1000, { 50, kHeight - lane - 1 }, 100, kHeight)
+           != LoopEditGeometry::LoopHandle::crossfade);
+}
+
 TEST_CASE ("sanitized handles two-sample loops and clamp helpers saturate")
 {
     const auto two = LoopEditGeometry::sanitized (makeLoop (0, 1, 5), 2);

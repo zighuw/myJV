@@ -13,9 +13,61 @@ std::string normalisedRelativePath (const juce::File& root, const juce::File& fi
     return file.getRelativePathFrom (root).replaceCharacter ('\\', '/').toStdString();
 }
 
-std::string hashFile (const juce::File& file)
+// SHA-256 of a file, with cooperative cancellation. JUCE has no incremental
+// SHA256 update(), so the stream is wrapped instead: once shouldCancel() fires
+// the wrapper reports EOF and the caller discards the partial digest rather than
+// writing a wrong hash into the index (code-review I-7).
+std::string hashFile (const juce::File& file, const std::function<bool()>& shouldCancel, bool& cancelled)
 {
-    return juce::SHA256 (file).toHexString().toStdString();
+    cancelled = false;
+
+    class CancellableInputStream final : public juce::InputStream
+    {
+    public:
+        CancellableInputStream (const juce::File& sourceFile, const std::function<bool()>& cancelCheckIn)
+            : source (sourceFile), cancelCheck (cancelCheckIn)
+        {
+        }
+
+        bool wasCancelled() const noexcept { return cancelled; }
+        bool openedOk() const noexcept { return source.openedOk(); }
+
+        int read (void* buffer, int maxBytes) override
+        {
+            if (cancelCheck != nullptr && cancelCheck())
+            {
+                cancelled = true;
+                return 0;   // report EOF; the digest is thrown away below
+            }
+
+            return source.read (buffer, maxBytes);
+        }
+
+        juce::int64 getTotalLength() override { return source.getTotalLength(); }
+        bool isExhausted() override { return cancelled || source.isExhausted(); }
+        juce::int64 getPosition() override { return source.getPosition(); }
+        bool setPosition (juce::int64 newPosition) override { return source.setPosition (newPosition); }
+
+    private:
+        juce::FileInputStream source;
+        const std::function<bool()>& cancelCheck;
+        bool cancelled = false;
+    };
+
+    CancellableInputStream stream (file, shouldCancel);
+
+    if (! stream.openedOk())
+        return juce::SHA256 (file).toHexString().toStdString();   // unchanged fallback
+
+    const juce::SHA256 digest (stream);
+
+    if (stream.wasCancelled())
+    {
+        cancelled = true;
+        return {};
+    }
+
+    return digest.toHexString().toStdString();
 }
 
 juce::File resolveEntryFile (const juce::File& root, const LibraryEntry& entry)
@@ -116,11 +168,16 @@ ScanOutcome performScan (const juce::File& root,
 
         if (file.existsAsFile())
         {
-            const auto hash = hashFile (file);
+            bool cancelled = false;
+            const auto hash = hashFile (file, shouldStop, cancelled);
+
+            if (cancelled)
+                return outcome;   // aborted: nothing of this scan may be applied
 
             if (! claimedHashes.emplace (hash, entry.path).second)
             {
                 ++outcome.result.duplicatesSkipped;
+                ++outcome.result.entriesDropped;
                 continue;
             }
 
@@ -145,7 +202,11 @@ ScanOutcome performScan (const juce::File& root,
         if (existingPaths.count (path) != 0)
             continue;
 
-        const auto hash = hashFile (file);
+        bool cancelled = false;
+        const auto hash = hashFile (file, shouldStop, cancelled);
+
+        if (cancelled)
+            return outcome;   // aborted: nothing of this scan may be applied
 
         if (! claimedHashes.emplace (hash, path).second)
         {
@@ -275,6 +336,8 @@ int SampleLibrary::cleanupOrphanedThumbnails (double minimumAgeSeconds)
 
 void SampleLibrary::startScan()
 {
+    jassert (juce::MessageManager::existsAndIsCurrentThread());
+
     if (scanning.exchange (true))
         return;
 
@@ -330,6 +393,31 @@ void SampleLibrary::waitForScanToFinish()
         applyPending (pending);
 }
 
+bool SampleLibrary::cancelScan()
+{
+    jassert (juce::MessageManager::existsAndIsCurrentThread());
+
+    if (! scanning.load())
+        return false;
+
+    if (auto pending = pendingScan)
+    {
+        const std::lock_guard lock (pending->mutex);
+        pending->cancelled = true;   // discard whatever the thread already produced
+        pending->ready = false;
+    }
+
+    if (scanThread != nullptr)
+    {
+        scanThread->stopThread (-1);   // prompt: hashing checks the exit flag
+        scanThread.reset();
+    }
+
+    pendingScan.reset();
+    scanning.store (false);
+    return true;
+}
+
 void SampleLibrary::applyPending (const std::shared_ptr<PendingScan>& pending)
 {
     ScanResult result;
@@ -337,7 +425,7 @@ void SampleLibrary::applyPending (const std::shared_ptr<PendingScan>& pending)
     {
         const std::lock_guard lock (pending->mutex);
 
-        if (! pending->ready || pending->applied)
+        if (! pending->ready || pending->applied || pending->cancelled)
             return;
 
         pending->applied = true;

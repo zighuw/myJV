@@ -108,6 +108,11 @@ enum class LoopHandle
     crossfade
 };
 
+// Height of the bottom lane that creates / adjusts the crossfade. Shared by the
+// waveform view's painter and the hit test so they cannot drift apart
+// (code-review N-13).
+inline constexpr int kCrossfadeLaneHeight = 16;
+
 // Pure handle selection shared by the waveform view. The bottom lane creates /
 // adjusts the crossfade. An invalid (empty) loop splits the view into a start
 // handle on the left half and an end handle on the right half, so a loop can be
@@ -119,7 +124,6 @@ inline LoopHandle handleAt (const LoopInfo& loop, std::int64_t lengthSamples,
     if (width <= 1 || height <= 0 || lengthSamples < 2)
         return LoopHandle::none;
 
-    constexpr int kCrossfadeLaneHeight = 16;
     const auto inCrossfadeLane = position.y >= height - kCrossfadeLaneHeight;
     const auto hasLoop = loop.end > loop.start;
 

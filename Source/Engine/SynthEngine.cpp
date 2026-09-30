@@ -2,7 +2,8 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-// RT-safe
+// non-RT: prepare may allocate (architecture 5.3 - buffer allocation and state
+// reset happen here, off the audio thread). M2 wires the Tone voices in.
 void SynthEngine::prepare (double, int) noexcept {}
 
 void SynthEngine::releaseResources() noexcept {}

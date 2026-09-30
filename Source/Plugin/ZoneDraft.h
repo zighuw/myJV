@@ -86,7 +86,9 @@ private:
         zone.velLow = juce::jlimit (kMidiVelocityMin, kMidiVelocityMax, zone.velLow);
         zone.velHigh = juce::jlimit (kMidiVelocityMin, kMidiVelocityMax, zone.velHigh);
         zone.rootKeyOverride = juce::jlimit (-1, kMidiNoteMax, zone.rootKeyOverride);
-        zone.pan = juce::jlimit (0, 127, zone.pan);
+        // Zone::pan is a 7-bit MIDI value (0..127, 64 = centre), the same range
+        // as notes (code-review N-14).
+        zone.pan = juce::jlimit (0, kMidiNoteMax, zone.pan);
         return zone;
     }
 

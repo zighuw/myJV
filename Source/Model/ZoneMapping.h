@@ -14,10 +14,13 @@
 // Pure and message-thread friendly; the editor owns the resulting draft.
 namespace ZoneMapping
 {
-// Parses a note name from a filename (with optional extension): the last valid
-// token wins, e.g. "Piano_C#4_v2.wav" -> 61. C4 = MIDI 60 (scientific pitch),
-// sharps are '#', '+', 's'; flats are 'b'; octave -1..9. Returns -1 when no
-// valid note exists or the result is outside MIDI 0..127.
+// Parses a note name from a filename (with optional extension). A token must
+// start a word, i.e. sit at index 0 or after a character that is not a letter
+// or digit, so the letter+digit pairs inside "Piano_C4_Take2.wav" are not read
+// as E2. Among the remaining tokens the one that ends last wins,
+// e.g. "Piano_C#4_v2.wav" -> 61. C4 = MIDI 60 (scientific pitch), sharps are
+// '#', '+', 's'; flats are 'b'; octave -1..9. Returns -1 when no valid note
+// exists or the result is outside MIDI 0..127.
 inline int parseRootKeyFromFileName (const juce::String& fileName)
 {
     if (fileName.isEmpty())
@@ -43,6 +46,12 @@ inline int parseRootKeyFromFileName (const juce::String& fileName)
 
     for (int i = 0; i < length; ++i)
     {
+        // Token boundary (code-review I-2): a note name must start a word. Inside
+        // a word the letter+digit pairs of "take2"/"mic2"/"Analog2" would
+        // otherwise be read as e2/c2/g2 and override (or invent) the root key.
+        if (i > 0 && juce::CharacterFunctions::isLetterOrDigit (stem[i - 1]))
+            continue;
+
         int semitone = -1;
 
         switch (stem[i])
@@ -103,7 +112,8 @@ inline int parseRootKeyFromFileName (const juce::String& fileName)
             continue;
 
         // Prefer the token that ends last; break ties with the longest token
-        // (smallest start) so "Db2" parses as D-flat rather than B.
+        // (smallest start) so "Db2" parses as D-flat rather than B. Both tokens
+        // are already known to start a word (see the boundary check above).
         if (j > bestEnd || (j == bestEnd && (bestStart < 0 || i < bestStart)))
         {
             bestEnd = j;
@@ -164,7 +174,7 @@ inline ZoneSet buildAutoMappedZoneSet (const std::vector<LibraryEntry>& entries,
             zone.sample = resolve (entry);
             zone.keyLow = keyLow;
             zone.keyHigh = keyHigh;
-            zone.velLow = 1 + (i * kMidiVelocityMax) / count;
+            zone.velLow = kMidiVelocityMin + (i * kMidiVelocityMax) / count;
             zone.velHigh = ((i + 1) * kMidiVelocityMax) / count;
             zone.rootKeyOverride = rootKeyOverride;
             zone.loop = entry.loop;   // Zone::loop is the effective region (ADR-014)

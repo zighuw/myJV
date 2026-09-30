@@ -387,7 +387,12 @@ TEST_CASE ("engine processes events without a configured sink")
     REQUIRE (fixture.buffers[0].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }
 
-TEST_CASE ("midi events do not alter the rendered audio")
+// NOTE (code-review I-4): the engine test tone was removed (ADR-010), so the
+// engine currently renders silence. The per-sample comparison below is therefore
+// trivially satisfied and only the event count has discriminating power; M2-05
+// must restore a non-silent comparison once ToneVoice is wired (see PROGRESS.md,
+// M1-F03 follow-up).
+TEST_CASE ("midi event splitting leaves the silent engine output unchanged (M2-05 must restore a non-silent check)")
 {
     BusFixture reference;
     SynthEngine referenceEngine;

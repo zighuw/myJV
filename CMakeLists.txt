@@ -66,6 +66,7 @@ set(MYJV_SOURCE_HEADERS
     Source/Plugin/MyJVEditor.h
     Source/Plugin/MyJVLog.h
     Source/Plugin/MyJVProcessor.h
+    Source/Plugin/SamplerUiHelpers.h
     Source/Plugin/LoopEditGeometry.h
     Source/Plugin/WaveformView.h
     Source/Plugin/ZoneDraft.h

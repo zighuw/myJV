@@ -29,12 +29,23 @@ TEST_CASE ("grid coordinates map to keys and velocities")
     CHECK (ZoneMapGeometry::keyAtX (127, 128) == 127);
     CHECK (ZoneMapGeometry::keyAtX (-5, 128) == 0);
     CHECK (ZoneMapGeometry::keyAtX (999, 128) == 127);
-
     CHECK (ZoneMapGeometry::velocityAtY (0, 127) == 127);
     CHECK (ZoneMapGeometry::velocityAtY (63, 127) == 64);
     CHECK (ZoneMapGeometry::velocityAtY (126, 127) == 1);
     CHECK (ZoneMapGeometry::velocityAtY (-1, 127) == 127);
     CHECK (ZoneMapGeometry::velocityAtY (999, 127) == 1);
+}
+
+TEST_CASE ("grid uses the named MIDI key count")
+{
+    // 128 is the number of keys, not a note number, so it gets a name instead of
+    // a bare literal (code-review N-14).
+    CHECK (ZoneMapGeometry::kMidiKeyCount == kMidiNoteMax - kMidiNoteMin + 1);
+    CHECK (ZoneMapGeometry::kMidiKeyCount == 128);
+
+    const auto width = ZoneMapGeometry::kMidiKeyCount;
+    CHECK (ZoneMapGeometry::keyAtX (0, width) == kMidiNoteMin);
+    CHECK (ZoneMapGeometry::keyAtX (width - 1, width) == kMidiNoteMax);
 }
 
 TEST_CASE ("zone rectangles cover the key and velocity ranges")

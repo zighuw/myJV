@@ -85,4 +85,106 @@ inline MergeOutcome mergeImportedEntry (std::vector<LibraryEntry>& entries,
     outcome.added = true;
     return outcome;
 }
+
+// --- transient status line (code-review I-1) --------------------------------
+
+// Import/scan feedback must stay readable: the 10 Hz status timer and the
+// change listeners rewrite the label every 100 ms, so a transient message is
+// only shown while it is younger than this window.
+inline constexpr std::int64_t kStatusMessageDurationMs = 2000;
+
+// First `maxChars` characters of a content hash, for compact status text.
+inline juce::String shortHash (const std::string& fileHash, std::size_t maxChars = 8)
+{
+    return juce::String (fileHash.substr (0, juce::jmin (maxChars, fileHash.size())));
+}
+
+// Display policy for the status label: while a transient message is young
+// enough it outranks the periodic statistics, afterwards the statistics come
+// back. Pure so the editor's behaviour is unit-testable (checklist item 8).
+class StatusLineState
+{
+public:
+    // An empty message clears a pending one; a non-positive duration expires
+    // immediately (nothing is shown).
+    void setMessage (juce::String message, std::int64_t nowMs,
+                     std::int64_t durationMs = kStatusMessageDurationMs)
+    {
+        if (message.isEmpty())
+        {
+            clear();
+            return;
+        }
+
+        text = std::move (message);
+        expiryMs = nowMs + juce::jmax ((std::int64_t) 0, durationMs);
+    }
+
+    void clear() noexcept
+    {
+        text.clear();
+        expiryMs = 0;
+    }
+
+    bool hasActiveMessage (std::int64_t nowMs) const noexcept
+    {
+        return text.isNotEmpty() && nowMs < expiryMs;
+    }
+
+    const juce::String& message() const noexcept { return text; }
+
+    juce::String resolve (const juce::String& statsText, std::int64_t nowMs) const
+    {
+        return hasActiveMessage (nowMs) ? text : statsText;
+    }
+
+private:
+    juce::String text;
+    std::int64_t expiryMs = 0;
+};
+
+// Message builders for the import/scan outcomes that must stay visible.
+inline juce::String duplicateSkipMessage (const std::string& path)
+{
+    return "Already in library: " + juce::String (path);
+}
+
+inline juce::String importFailureMessage (const std::string& errorMessage)
+{
+    return "Import failed: " + juce::String (errorMessage);
+}
+
+inline juce::String importSuccessMessage (const std::string& path, const std::string& fileHash)
+{
+    return "Imported: " + juce::String (path) + " (" + shortHash (fileHash) + ")";
+}
+
+inline juce::String fileNotFoundMessage (const juce::String& fullPath)
+{
+    return "File not found: " + fullPath;
+}
+
+inline juce::String scanInProgressMessage()
+{
+    return "Scan in progress; import skipped";
+}
+
+inline juce::String scanAlreadyRunningMessage()
+{
+    return "Scan already in progress";
+}
+
+inline juce::String importInProgressMessage()
+{
+    return "Import in progress; try again";
+}
+
+// A scan dropped already-indexed entries because another entry claimed their
+// content hash first; the files are still on disk, so the loss is reported
+// (code-review I-6).
+inline juce::String entriesDroppedMessage (int count)
+{
+    return "Scan dropped " + juce::String (count)
+           + (count == 1 ? " duplicate entry" : " duplicate entries");
+}
 }

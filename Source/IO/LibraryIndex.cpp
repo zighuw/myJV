@@ -83,6 +83,25 @@ bool isSafeEntryPath (const juce::String& path, bool external)
            && ! path.startsWithChar ('\\');
 }
 
+// The hash is the dedup key and the sample-cache key, so a malformed one (short,
+// uppercase or non-hex) can never match anything: the entry is dropped instead of
+// being kept in a permanently unmatched state (code-review N-04).
+bool isLowercaseHexHash (const juce::String& hash)
+{
+    if (hash.length() != 64)
+        return false;
+
+    for (int i = 0; i < hash.length(); ++i)
+    {
+        const auto character = hash[i];
+
+        if (! ((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')))
+            return false;
+    }
+
+    return true;
+}
+
 juce::var entriesToVar (const std::vector<LibraryEntry>& entries)
 {
     juce::Array<juce::var> samples;
@@ -124,7 +143,7 @@ bool varToEntry (const juce::var& value, LibraryEntry& entry)
     const auto external = getBool (*object, kExternalKey);
     const auto hash = object->getProperty (kHashKey).toString();
 
-    if (! isSafeEntryPath (path, external) || hash.isEmpty())
+    if (! isSafeEntryPath (path, external) || ! isLowercaseHexHash (hash))
         return false;
 
     entry = LibraryEntry {};
@@ -134,7 +153,15 @@ bool varToEntry (const juce::var& value, LibraryEntry& entry)
     entry.rootKey = getInt (*object, kRootKeyKey, 60);
     entry.sourceSampleRate = getDouble (*object, kSourceSampleRateKey, 48000.0);
     entry.lengthSamples = getInt64 (*object, kLengthSamplesKey);
-    entry.thumbnailPath = object->getProperty (kThumbnailKey).toString().toStdString();
+
+    // Thumbnails are written under <root>/thumbnails/ (SampleImporter) and must
+    // stay root-relative: a hand-edited index must not point the waveform view at
+    // an arbitrary path. Anything else is dropped, not fatal (code-review N-01).
+    const auto thumbnail = object->getProperty (kThumbnailKey).toString().replaceCharacter ('\\', '/');
+
+    if (thumbnail.isNotEmpty() && isSafeEntryPath (thumbnail, false)
+        && thumbnail.startsWith (juce::String (kThumbnailsDirectoryName) + "/"))
+        entry.thumbnailPath = thumbnail.toStdString();
 
     if (const auto* loop = object->getProperty (kLoopKey).getDynamicObject())
     {

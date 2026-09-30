@@ -8,6 +8,7 @@
 #include "Model/SampleLibrary.h"
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -458,6 +459,18 @@ TEST_CASE ("import rejects an empty library root and out-of-range target rates")
     CHECK_FALSE (SampleImporter::importFile (file, {}).succeeded);
     CHECK_FALSE (SampleImporter::importFile (file, directory, { 1.0e9, 64, 16 }).succeeded);
     CHECK_FALSE (SampleImporter::importFile (file, directory, { 100.0, 64, 16 }).succeeded);
+
+    // NaN slips through both range comparisons, so it needs an explicit
+    // finiteness precondition (code-review N-02).
+    const auto notANumber = SampleImporter::importFile (
+        file, directory, { std::numeric_limits<double>::quiet_NaN(), 64, 16 });
+    CHECK_FALSE (notANumber.succeeded);
+    CHECK (notANumber.errorMessage == "invalid target sample rate");
+
+    const auto infinity = SampleImporter::importFile (
+        file, directory, { std::numeric_limits<double>::infinity(), 64, 16 });
+    CHECK_FALSE (infinity.succeeded);
+    CHECK (infinity.errorMessage == "invalid target sample rate");
 }
 
 TEST_CASE ("thumbnail write failure does not fail the import")
