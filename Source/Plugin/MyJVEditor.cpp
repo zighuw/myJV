@@ -397,7 +397,12 @@ void MyJVEditor::handleScanResult (const ScanResult& result)
     else
         waveform.clearEntry();
 
-    updateStatus();
+    // A scan can drop already-indexed entries through deduplication; the files
+    // stay on disk, so the shrink must be visible (code-review I-6).
+    if (result.entriesDropped > 0)
+        showStatusMessage (SamplerUi::entriesDroppedMessage (result.entriesDropped));
+    else
+        updateStatus();
 }
 
 void MyJVEditor::toggleAudition()

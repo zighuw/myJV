@@ -179,8 +179,12 @@ ImportResult SampleImporter::importFile (const juce::File& file, const juce::Fil
         return result;
     }
 
-    if (options.targetSampleRate != 0.0
-        && (options.targetSampleRate < kMinImportSampleRate || options.targetSampleRate > kMaxImportSampleRate))
+    // NaN passes both range comparisons, so check finiteness explicitly
+    // (code-review N-02).
+    if (! std::isfinite (options.targetSampleRate)
+        || (options.targetSampleRate != 0.0
+            && (options.targetSampleRate < kMinImportSampleRate
+                || options.targetSampleRate > kMaxImportSampleRate)))
     {
         result.errorMessage = "invalid target sample rate";
         return result;

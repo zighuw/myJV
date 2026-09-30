@@ -17,7 +17,7 @@ struct LibraryEntry
 {
     std::string path;              // '/' separated: root-relative, or absolute when external
     bool external = false;         // true = file lives outside the library root (no copy on import)
-    std::string fileHash;          // SHA-256 hex (lowercase) of the file contents
+    std::string fileHash;          // SHA-256, 64 lowercase hex characters (validated on load)
     int rootKey = 60;
     LoopInfo loop;
     double sourceSampleRate = 48000.0;
@@ -52,6 +52,10 @@ struct ScanResult
     int entriesAdded = 0;
     int entriesUpdated = 0;
     int duplicatesSkipped = 0;
+    // Already-indexed entries that were removed from the index because another
+    // entry claimed their content hash first. Their files are still on disk, so
+    // the UI must report the loss instead of silently shrinking the library.
+    int entriesDropped = 0;
     int thumbnailsRemoved = 0;
     // Entry paths that are absent from disk: root-relative for internal
     // entries, absolute for external entries (disambiguate with
@@ -103,6 +107,12 @@ public:
     // Message thread only; waits for a scan to complete naturally (no
     // cancellation) and applies a pending result.
     void waitForScanToFinish();
+
+    // Message thread only; requests the in-flight scan to stop and discards its
+    // result, leaving the index and hashes untouched. Returns true when a scan
+    // was in flight. Hashing checks the exit flag, so this returns promptly even
+    // for very large files (code-review I-7).
+    bool cancelScan();
 
     // Imported sample cache (published by the importer, M1-03). Message thread
     // only: the importer marshals publication through the message thread so the

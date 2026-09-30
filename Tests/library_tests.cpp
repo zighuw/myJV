@@ -61,6 +61,46 @@ bool createDirectoryLink (const File& link, const File& target)
     return target.createSymbolicLink (link, false) && link.isDirectory();
 #endif
 }
+
+// A 64-character lowercase hash whose digits are all `digit`, for JSON fixtures.
+String hexHash (char digit)
+{
+    return String::repeatedString (String::charToString ((juce_wchar) digit), 64);
+}
+
+File writeBigFile (const File& directory, const String& path, int sizeBytes)
+{
+    auto file = directory.getChildFile (path);
+    file.deleteFile();
+
+    std::unique_ptr<FileOutputStream> stream (file.createOutputStream());
+
+    if (stream == nullptr)
+    {
+        REQUIRE (false);
+        return file;
+    }
+
+    const std::vector<char> chunk (64 * 1024, 0);
+    int written = 0;
+
+    while (written < sizeBytes)
+    {
+        const auto numBytes = jmin ((int) chunk.size(), sizeBytes - written);
+
+        if (! stream->write (chunk.data(), (std::size_t) numBytes))
+        {
+            REQUIRE (false);
+            break;
+        }
+
+        written += numBytes;
+    }
+
+    stream->flush();
+    stream.reset();
+    return file;
+}
 }
 
 TEST_CASE ("library index round-trips entries through json")
@@ -72,7 +112,7 @@ TEST_CASE ("library index round-trips entries through json")
     first.rootKey = 36;
     first.sourceSampleRate = 44100.0;
     first.lengthSamples = 123456;
-    first.thumbnailPath = "Piano/thumbs/Piano_C2.png";
+    first.thumbnailPath = "thumbnails/" + kAbcHash + ".png";
     first.loop.start = 120;
     first.loop.end = 480;
     first.loop.crossfadeSamples = 32;
@@ -97,7 +137,7 @@ TEST_CASE ("library index round-trips entries through json")
     CHECK (loaded[0].rootKey == 36);
     CHECK (loaded[0].sourceSampleRate == 44100.0);
     CHECK (loaded[0].lengthSamples == 123456);
-    CHECK (loaded[0].thumbnailPath == "Piano/thumbs/Piano_C2.png");
+    CHECK (loaded[0].thumbnailPath == first.thumbnailPath);
     CHECK (loaded[0].loop.start == 120);
     CHECK (loaded[0].loop.end == 480);
     CHECK (loaded[0].loop.crossfadeSamples == 32);
@@ -360,6 +400,41 @@ TEST_CASE ("content changing to collide with another entry drops the later dupli
     CHECK (library.getEntries()[0].path == "A.wav");
 }
 
+TEST_CASE ("scan reports existing entries dropped by deduplication")
+{
+    const auto directory = makeLibraryDirectory();
+    writeFile (directory, "A.wav", "one");
+    const auto b = writeFile (directory, "B.wav", "two");
+
+    SampleLibrary library;
+    library.setRootDirectory (directory);
+    REQUIRE (library.scanNow().entriesAdded == 2);
+
+    REQUIRE (findEntry (library, "A.wav") != nullptr);
+    const auto firstHash = findEntry (library, "A.wav")->fileHash;
+
+    // B.wav now has the same content as A.wav, so the later existing entry is
+    // dropped from the index; that must be reported instead of silently
+    // shrinking the library (code-review I-6).
+    REQUIRE (b.replaceWithText ("one"));
+
+    const auto result = library.scanNow();
+
+    CHECK (result.duplicatesSkipped == 1);
+    CHECK (result.entriesDropped == 1);
+    REQUIRE (library.getEntries().size() == 1);
+    CHECK (library.getEntries()[0].path == "A.wav");
+    CHECK (library.getEntries()[0].fileHash == firstHash);
+
+    // An unchanged rescan drops nothing more: the entry is already gone and the
+    // file is now a plain on-disk duplicate, skipped on every scan.
+    const auto clean = library.scanNow();
+    CHECK (clean.entriesDropped == 0);
+    CHECK (clean.entriesAdded == 0);
+    CHECK (clean.entriesUpdated == 0);
+    CHECK (clean.duplicatesSkipped == 1);
+}
+
 TEST_CASE ("sample cache publishes and releases shared samples")
 {
     auto sample = std::make_shared<Sample>();
@@ -419,6 +494,59 @@ TEST_CASE ("background scan publishes the index on the message thread")
     CHECK (findEntry (library, "B.flac") != nullptr);
 }
 
+TEST_CASE ("cancelling a scan leaves the index and hashes untouched")
+{
+    const auto directory = makeLibraryDirectory();
+    writeFile (directory, "A.wav", "one");
+    writeFile (directory, "B.wav", "two");
+
+    SampleLibrary library;
+    library.setRootDirectory (directory);
+    REQUIRE (library.scanNow().succeeded);
+
+    const auto before = library.getEntries();
+    REQUIRE (before.size() == 2);
+
+    // A 16 MiB file keeps the scan in flight: hashing it takes tens of
+    // milliseconds while startScan() + cancelScan() is a sub-millisecond round
+    // trip, so the cancellation always lands mid-scan. No sleeping or polling
+    // is involved, and the assertions below hold either way (code-review I-7).
+    writeBigFile (directory, "Big.wav", 16 * 1024 * 1024);
+
+    library.startScan();
+    REQUIRE (library.cancelScan());
+    library.waitForScanToFinish();
+
+    CHECK_FALSE (library.isScanning());
+
+    const auto after = library.getEntries();
+    REQUIRE (after.size() == before.size());
+
+    for (std::size_t i = 0; i < before.size(); ++i)
+    {
+        CHECK (after[i].path == before[i].path);
+        CHECK (after[i].fileHash == before[i].fileHash);
+    }
+
+    // Nothing of the aborted scan leaked into the index.
+    CHECK (findEntry (library, "Big.wav") == nullptr);
+
+    // A rescan after the cancellation matches a library that never cancelled.
+    REQUIRE (library.scanNow().succeeded);
+
+    SampleLibrary reference;
+    reference.setRootDirectory (directory);
+    REQUIRE (reference.scanNow().succeeded);
+
+    REQUIRE (library.getEntries().size() == reference.getEntries().size());
+
+    for (std::size_t i = 0; i < reference.getEntries().size(); ++i)
+    {
+        CHECK (library.getEntries()[i].path == reference.getEntries()[i].path);
+        CHECK (library.getEntries()[i].fileHash == reference.getEntries()[i].fileHash);
+    }
+}
+
 TEST_CASE ("missing entries do not suppress a present duplicate file")
 {
     const auto directory = makeLibraryDirectory();
@@ -470,9 +598,9 @@ TEST_CASE ("library index tolerates optional fields and coerces wrong types")
     const auto directory = makeLibraryDirectory();
     const auto file = writeFile (directory, "sparse.json",
         "{\"schemaVersion\": 1, \"extra\": 42, \"samples\": ["
-        "{\"path\": \"A.wav\", \"hash\": \"abc\"},"
-        "{\"path\": \"B.wav\", \"hash\": \"def\", \"rootKey\": {}, \"sourceSampleRate\": \"x\", \"loop\": null},"
-        "{\"path\": \"C.wav\", \"hash\": \"ghi\", \"loop\": 7}"
+        "{\"path\": \"A.wav\", \"hash\": \"" + hexHash ('a') + "\"},"
+        "{\"path\": \"B.wav\", \"hash\": \"" + hexHash ('b') + "\", \"rootKey\": {}, \"sourceSampleRate\": \"x\", \"loop\": null},"
+        "{\"path\": \"C.wav\", \"hash\": \"" + hexHash ('c') + "\", \"loop\": 7}"
         "]}");
 
     std::vector<LibraryEntry> entries;
@@ -500,16 +628,16 @@ TEST_CASE ("library index skips unsafe, unhashed and malformed samples")
                         + "/../evil.wav";
 
     const auto json = juce::String ("{\"schemaVersion\": 1, \"samples\": [")
-                      + "{\"path\": \"../evil.wav\", \"hash\": \"abc\"},"
-                      + "{\"path\": \"sub/../evil.wav\", \"hash\": \"def\"},"
+                      + "{\"path\": \"../evil.wav\", \"hash\": \"" + hexHash ('a') + "\"},"
+                      + "{\"path\": \"sub/../evil.wav\", \"hash\": \"" + hexHash ('b') + "\"},"
                       + "{\"path\": \"C.wav\", \"hash\": \"\"},"
-                      + "{\"path\": \"/rooted.wav\", \"hash\": \"dd\"},"
-                      + "{\"path\": \"relative/external.wav\", \"hash\": \"aa\", \"external\": true},"
-                      + "{\"path\": \"C:foo\", \"hash\": \"ee\", \"external\": true},"
-                      + "{\"path\": \"" + dotted + "\", \"hash\": \"bb\", \"external\": true},"
-                      + "{\"path\": \"" + absolute + "\", \"hash\": \"ff\", \"external\": 1},"
-                      + "{\"path\": \"" + absolute + "\", \"hash\": \"cc\", \"external\": true},"
-                      + "{\"path\": \"D.wav\", \"hash\": \"ghi\"}"
+                      + "{\"path\": \"/rooted.wav\", \"hash\": \"" + hexHash ('d') + "\"},"
+                      + "{\"path\": \"relative/external.wav\", \"hash\": \"" + hexHash ('e') + "\", \"external\": true},"
+                      + "{\"path\": \"C:foo\", \"hash\": \"" + hexHash ('f') + "\", \"external\": true},"
+                      + "{\"path\": \"" + dotted + "\", \"hash\": \"" + hexHash ('0') + "\", \"external\": true},"
+                      + "{\"path\": \"" + absolute + "\", \"hash\": \"" + hexHash ('1') + "\", \"external\": 1},"
+                      + "{\"path\": \"" + absolute + "\", \"hash\": \"" + hexHash ('2') + "\", \"external\": true},"
+                      + "{\"path\": \"D.wav\", \"hash\": \"" + hexHash ('3') + "\"}"
                       + "]}";
 
     const auto file = writeFile (directory, "unsafe.json", json);
@@ -528,6 +656,52 @@ TEST_CASE ("library index skips unsafe, unhashed and malformed samples")
     entries.push_back (makeEntry ("stale.wav", kAbcHash));
     REQUIRE (LibraryIndex::load (notArray, entries));
     CHECK (entries.empty());
+}
+
+TEST_CASE ("library index rejects entries whose hash is not 64 lowercase hex")
+{
+    const auto directory = makeLibraryDirectory();
+    const auto valid = hexHash ('a');
+
+    const auto file = writeFile (directory, "hashes.json",
+        "{\"schemaVersion\": 1, \"samples\": ["
+        "{\"path\": \"A.wav\", \"hash\": \"abc\"},"
+        "{\"path\": \"B.wav\", \"hash\": \"" + valid.toUpperCase() + "\"},"
+        "{\"path\": \"C.wav\", \"hash\": \"" + hexHash ('z') + "\"},"
+        "{\"path\": \"D.wav\", \"hash\": \"\"},"
+        "{\"path\": \"E.wav\", \"hash\": \"" + valid + "\"}"
+        "]}");
+
+    std::vector<LibraryEntry> entries;
+    REQUIRE (LibraryIndex::load (file, entries));
+    REQUIRE (entries.size() == 1);
+    CHECK (entries[0].path == "E.wav");
+    CHECK (entries[0].fileHash == valid.toStdString());
+}
+
+TEST_CASE ("library index drops thumbnails outside the thumbnails directory")
+{
+    const auto directory = makeLibraryDirectory();
+    const auto hash = hexHash ('b');
+
+    const auto file = writeFile (directory, "thumbnails.json",
+        "{\"schemaVersion\": 1, \"samples\": ["
+        "{\"path\": \"A.wav\", \"hash\": \"" + hash + "\", \"thumbnail\": \"thumbnails/a.png\"},"
+        "{\"path\": \"B.wav\", \"hash\": \"" + hash + "\", \"thumbnail\": \"../outside.png\"},"
+        "{\"path\": \"C.wav\", \"hash\": \"" + hash + "\", \"thumbnail\": \"Piano/thumbs/c.png\"},"
+        "{\"path\": \"D.wav\", \"hash\": \"" + hash + "\", \"thumbnail\": \"/rooted.png\"},"
+        "{\"path\": \"E.wav\", \"hash\": \"" + hash + "\", \"thumbnail\": \"thumbnails\\\\e.png\"}"
+        "]}");
+
+    std::vector<LibraryEntry> entries;
+    REQUIRE (LibraryIndex::load (file, entries));
+    REQUIRE (entries.size() == 5);   // the entries stay; only unsafe thumbnails are dropped
+
+    CHECK (entries[0].thumbnailPath == "thumbnails/a.png");
+    CHECK (entries[1].thumbnailPath.empty());
+    CHECK (entries[2].thumbnailPath.empty());
+    CHECK (entries[3].thumbnailPath.empty());
+    CHECK (entries[4].thumbnailPath == "thumbnails/e.png");   // backslashes normalised
 }
 
 TEST_CASE ("scan tracks external entries and reports them missing")

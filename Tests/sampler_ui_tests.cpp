@@ -198,3 +198,10 @@ TEST_CASE ("sampler ui builds the transient messages for import and scan outcome
     CHECK (SamplerUi::scanAlreadyRunningMessage().contains ("Scan"));
     CHECK (SamplerUi::importInProgressMessage().contains ("Import"));
 }
+
+TEST_CASE ("sampler ui reports entries dropped by scan deduplication")
+{
+    CHECK (SamplerUi::entriesDroppedMessage (1) == "Scan dropped 1 duplicate entry");
+    CHECK (SamplerUi::entriesDroppedMessage (2) == "Scan dropped 2 duplicate entries");
+    CHECK (SamplerUi::entriesDroppedMessage (17) == "Scan dropped 17 duplicate entries");
+}

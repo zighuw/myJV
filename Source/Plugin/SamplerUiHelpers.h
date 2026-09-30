@@ -178,4 +178,13 @@ inline juce::String importInProgressMessage()
 {
     return "Import in progress; try again";
 }
+
+// A scan dropped already-indexed entries because another entry claimed their
+// content hash first; the files are still on disk, so the loss is reported
+// (code-review I-6).
+inline juce::String entriesDroppedMessage (int count)
+{
+    return "Scan dropped " + juce::String (count)
+           + (count == 1 ? " duplicate entry" : " duplicate entries");
+}
 }
