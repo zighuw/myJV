@@ -7,7 +7,8 @@
 
 MyJVProcessor::MyJVProcessor()
     : juce::AudioProcessor (createBuses()),
-      apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
+      apvts (*this, nullptr, "PARAMETERS", createParameterLayout()),
+      paramSnapshotCache (ParamSnapshotCache::fromApvts (apvts))
 {
     MyJVLog::initialise (MyJVLog::defaultLogDirectory());
     MyJVCrashHandler::install (JucePlugin_VersionString);
@@ -34,6 +35,11 @@ void MyJVProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     engine.prepare (sampleRate, samplesPerBlock);
     audition.prepare (sampleRate);
+
+    // M2-01 option A: the cache is wired, but the reclaimer stays null until
+    // M3-01 publishes the first PatchRuntime. Until then no runtime is active,
+    // so the audio-thread refresh is a silent no-op.
+    engine.setParamSnapshotSource (&paramSnapshotCache, nullptr);
 
     // The timer drives audition retire cleanup on the message thread; start it
     // here too in case the processor was constructed off the message thread.

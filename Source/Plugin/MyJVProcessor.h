@@ -5,6 +5,7 @@
 #include "Engine/AuditionVoice.h"
 #include "Engine/SynthEngine.h"
 #include "Model/SampleLibrary.h"
+#include "Params/ParamSnapshotCache.h"
 
 class MyJVProcessor final : public juce::AudioProcessor,
                             private juce::Timer
@@ -92,6 +93,14 @@ public:
         return library;
     }
 
+    // Message thread. Exposed so tests (and later patch tooling) can verify the
+    // snapshot cache against the live parameter set (M2-01).
+    juce::AudioProcessorValueTreeState& getApvts() noexcept
+    {
+        jassert (juce::MessageManager::existsAndIsCurrentThread());
+        return apvts;
+    }
+
     AuditionVoice& getAuditionVoice() noexcept
     {
         jassert (juce::MessageManager::existsAndIsCurrentThread());
@@ -102,6 +111,7 @@ private:
     void timerCallback() override;
 
     juce::AudioProcessorValueTreeState apvts;
+    ParamSnapshotCache paramSnapshotCache;
     SynthEngine engine;
     SampleLibrary library;
     AuditionVoice audition;

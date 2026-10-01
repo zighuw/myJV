@@ -318,6 +318,30 @@ TEST_CASE ("publish and collect handle sustained churn")
     CHECK (reclaimer.activeForAudio()->id == 10000);
 }
 
+TEST_CASE ("an unowned published runtime is reclaimed once retired and reported")
+{
+    // Regression proof for the CI flake: publish() did not give the caller
+    // custody. With a concurrent publisher + collector (grace 0) the runtime is
+    // reclaimed here, so the raw pointer returned by publish() must not be
+    // dereferenced afterwards (the old concurrent case did exactly that).
+    AssetReclaimer reclaimer (0.0);
+
+    std::weak_ptr<PatchRuntime> weak;
+    {
+        auto runtime = makeRuntime();
+        weak = runtime;
+        const auto* published = reclaimer.publish (std::move (runtime));
+        REQUIRE (published != nullptr);
+        CHECK (published->id == 1);
+    }
+
+    reclaimer.publish (makeRuntime());
+    reclaimer.updateOldestAssetInUse (reclaimer.activeForAudio()->id);
+
+    REQUIRE (reclaimer.collect() == 1);
+    CHECK (weak.expired());
+}
+
 TEST_CASE ("two publishers and a collector keep one active entry and unique ids")
 {
     AssetReclaimer reclaimer (0.0);
@@ -344,15 +368,21 @@ TEST_CASE ("two publishers and a collector keep one active entry and unique ids"
 
         for (int i = 0; i < kPerThread; ++i)
         {
-            const auto* published = reclaimer.publish (makeRuntime());
+            // Keep this thread's own reference while reading the id: with the
+            // concurrent collector and grace 0 the reclaimer may retire and
+            // reclaim the just-published runtime before the check below, so
+            // dereferencing publish()'s raw pointer without custody would be a
+            // use-after-free (this was the CI flake).
+            auto runtime = makeRuntime();
+            const auto* published = reclaimer.publish (runtime);
 
-            if (published == nullptr || published->id <= previous)
+            if (published == nullptr || runtime->id <= previous)
             {
                 ++violations;   // a publisher must see strictly increasing ids
                 return;
             }
 
-            previous = published->id;
+            previous = runtime->id;
             recorded.push_back (previous);
         }
     };

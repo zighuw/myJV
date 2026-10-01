@@ -23,6 +23,7 @@ set(MYJV_CORE_SOURCES
     Source/IO/SampleImporter.cpp
     Source/Model/SampleLibrary.cpp
     Source/Params/ParameterLayout.cpp
+    Source/Params/ParamSnapshotCache.cpp
     Source/Plugin/MyJVCrashHandler.cpp
     Source/Plugin/MyJVEditor.cpp
     Source/Plugin/MyJVLog.cpp
@@ -61,6 +62,7 @@ set(MYJV_SOURCE_HEADERS
     Source/Model/ZoneSet.h
     Source/Params/Calibration.h
     Source/Params/ParamSnapshot.h
+    Source/Params/ParamSnapshotCache.h
     Source/Params/ParameterIDs.h
     Source/Plugin/MyJVCrashHandler.h
     Source/Plugin/MyJVEditor.h
