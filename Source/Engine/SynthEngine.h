@@ -8,6 +8,9 @@ class MidiBuffer;
 struct MidiMessageMetadata;
 }
 
+class AssetReclaimer;
+class ParamSnapshotCache;
+
 inline constexpr int kNumOutputBuses = 3;
 
 struct BusBuffers
@@ -35,12 +38,24 @@ public:
 
     void setMidiEventSink (MidiEventSink* sink) noexcept;
 
+    // Non-RT wiring; call while the audio callback is stopped (prepareToPlay).
+    // A null source (either pointer) makes the per-block refresh a silent no-op
+    // on the audio thread. Until the patch publishing pipeline lands (M3-01)
+    // the processor wires the cache with no reclaimer, so no runtime is ever
+    // active and the running snapshot stays idle.
+    void setParamSnapshotSource (const ParamSnapshotCache* cache, const AssetReclaimer* reclaimer) noexcept;
+
     // RT-safe
     void process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept;
 
 private:
     // RT-safe
+    void refreshActiveSnapshot() noexcept;
+
+    // RT-safe
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
 
     std::atomic<MidiEventSink*> midiSink { nullptr };
+    std::atomic<const ParamSnapshotCache*> snapshotCache { nullptr };
+    std::atomic<const AssetReclaimer*> snapshotReclaimer { nullptr };
 };

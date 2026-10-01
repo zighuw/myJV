@@ -1,5 +1,7 @@
 #include "SynthEngine.h"
 
+#include "Params/ParamSnapshotCache.h"
+
 #include <juce_audio_basics/juce_audio_basics.h>
 
 // non-RT: prepare may allocate (architecture 5.3 - buffer allocation and state
@@ -13,9 +15,32 @@ void SynthEngine::setMidiEventSink (MidiEventSink* sink) noexcept
     midiSink.store (sink, std::memory_order_release);
 }
 
+void SynthEngine::setParamSnapshotSource (const ParamSnapshotCache* cache, const AssetReclaimer* reclaimer) noexcept
+{
+    snapshotReclaimer.store (reclaimer, std::memory_order_release);
+    snapshotCache.store (cache, std::memory_order_release);
+}
+
+// RT-safe. Architecture 5.3 step 2: refresh the active runtime's snapshot once
+// per block, before the MIDI sub-block split. Retired runtimes keep their
+// frozen snapshot (architecture 4.2 / Patch Remain).
+void SynthEngine::refreshActiveSnapshot() noexcept
+{
+    const auto* cache = snapshotCache.load (std::memory_order_acquire);
+    const auto* reclaimer = snapshotReclaimer.load (std::memory_order_acquire);
+
+    if (cache == nullptr || reclaimer == nullptr)
+        return;
+
+    if (const auto* active = reclaimer->activeForAudio())
+        cache->refresh (*active);
+}
+
 // RT-safe
 void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept
 {
+    refreshActiveSnapshot();
+
     int currentSample = 0;
 
     for (const auto metadata : midi)
