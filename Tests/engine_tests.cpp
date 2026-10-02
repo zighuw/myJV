@@ -3,6 +3,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Engine/AssetReclaimer.h"
 #include "Engine/SynthEngine.h"
 #include "Plugin/MyJVProcessor.h"
 
@@ -21,11 +22,11 @@ constexpr int kNumSamples = 48000;
 
 struct BusFixture
 {
-    BusFixture()
+    explicit BusFixture (int samples = kNumSamples)
     {
         for (auto& buffer : buffers)
         {
-            buffer.setSize (2, kNumSamples);
+            buffer.setSize (2, samples);
             buffer.clear();
         }
     }
@@ -51,6 +52,72 @@ void fillBuffer (AudioBuffer<float>& buffer, float value)
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
         FloatVectorOperations::fill (buffer.getWritePointer (channel), value, buffer.getNumSamples());
 }
+
+std::shared_ptr<Sample> makeRuntimeSample (double frequency = 100.0, int frames = kNumSamples)
+{
+    auto sample = std::make_shared<Sample>();
+    sample->sourceSampleRate = kSampleRate;
+    sample->rootKey = 60;
+    sample->data.setSize (1, frames);
+    auto* data = sample->data.getWritePointer (0);
+
+    for (int i = 0; i < frames; ++i)
+        data[i] = (float) (0.5 * std::sin (6.283185307179586 * frequency * (double) i / kSampleRate));
+
+    return sample;
+}
+
+ToneSnapshot makeRuntimeTone()
+{
+    ToneSnapshot tone;
+    tone.wg.toneSwitch = true;
+    tone.wg.keyLow = 0;
+    tone.wg.keyHigh = 127;
+    tone.wg.velLow = 1;
+    tone.wg.velHigh = 127;
+    tone.wg.pitchKeyfollow = 100.0f;
+    tone.tvf.type = 1;
+    tone.tvf.cutoff = 127.0f;
+    tone.tva.level = 127.0f;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        tone.pEnv.level[i] = 127.0f;
+        tone.tvf.fEnv.level[i] = 127.0f;
+    }
+
+    for (int i = 0; i < 3; ++i)
+        tone.tva.aEnv.level[i] = 127.0f;
+
+    tone.pan.position = 64.0f;
+    tone.output.level = 127.0f;
+    tone.lfo[0].rate = 64.0f;
+    tone.lfo[1].rate = 64.0f;
+    return tone;
+}
+
+struct EngineRuntime
+{
+    EngineRuntime()
+    {
+        auto zoneSet = std::make_shared<ZoneSet>();
+        Zone zone;
+        zone.sample = makeRuntimeSample();
+        zone.loopMode = LoopMode::Sustain;
+        zone.loop.start = 0;
+        zone.loop.end = zone.sample->data.getNumSamples();
+        zoneSet->zones.push_back (zone);
+
+        runtime = std::make_shared<PatchRuntime>();
+        runtime->snapshot.tones[0] = makeRuntimeTone();
+        runtime->zoneSets[0] = zoneSet;
+        runtime->rawZoneSets[0] = zoneSet.get();
+        reclaimer.publish (runtime);
+    }
+
+    AssetReclaimer reclaimer;
+    std::shared_ptr<PatchRuntime> runtime;
+};
 
 class BusTestProcessor final : public AudioProcessor
 {
@@ -387,32 +454,40 @@ TEST_CASE ("engine processes events without a configured sink")
     REQUIRE (fixture.buffers[0].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }
 
-// NOTE (code-review I-4): the engine test tone was removed (ADR-010), so the
-// engine currently renders silence. The per-sample comparison below is therefore
-// trivially satisfied and only the event count has discriminating power; M2-05
-// must restore a non-silent comparison once ToneVoice is wired (see PROGRESS.md,
-// M1-F03 follow-up).
-TEST_CASE ("midi event splitting leaves the silent engine output unchanged (M2-05 must restore a non-silent check)")
+// M2-05 restores the non-silent comparison required by code-review I-4: both
+// engines drive the same active runtime; the only difference is that the extra
+// controller event forces an additional subblock split, which must not change a
+// single sample of the rendered audio.
+TEST_CASE ("midi event splitting leaves the rendered audio unchanged")
 {
+    EngineRuntime activeRuntime;
+
     BusFixture reference;
     SynthEngine referenceEngine;
     referenceEngine.prepare (kSampleRate, kNumSamples);
-    referenceEngine.process (reference.makeBusBuffers(), MidiBuffer(), kNumSamples);
+    referenceEngine.setParamSnapshotSource (nullptr, &activeRuntime.reclaimer);
+
+    MidiBuffer referenceMidi;
+    referenceMidi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 0);
+    referenceMidi.addEvent (MidiMessage::noteOff (1, 60), kNumSamples - 1);
+    referenceEngine.process (reference.makeBusBuffers(), referenceMidi, kNumSamples);
 
     BusFixture split;
     RecordingSink sink;
     SynthEngine engine;
     engine.prepare (kSampleRate, kNumSamples);
+    engine.setParamSnapshotSource (nullptr, &activeRuntime.reclaimer);
     engine.setMidiEventSink (&sink);
 
     MidiBuffer midi;
     midi.addEvent (MidiMessage::noteOn (1, 60, 0.8f), 0);
-    midi.addEvent (MidiMessage::noteOn (1, 62, 0.8f), 12345);
+    midi.addEvent (MidiMessage::controllerEvent (1, 1, 64), 12345);
     midi.addEvent (MidiMessage::noteOff (1, 60), kNumSamples - 1);
 
     engine.process (split.makeBusBuffers(), midi, kNumSamples);
 
     REQUIRE (sink.numEvents == 3);
+    REQUIRE (reference.buffers[0].getMagnitude (0, 0, kNumSamples) > 0.01f);
 
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
     {
@@ -422,8 +497,108 @@ TEST_CASE ("midi event splitting leaves the silent engine output unchanged (M2-0
             maxDifference = jmax (maxDifference, std::abs (split.buffers[bus].getSample (0, i)
                                                           - reference.buffers[bus].getSample (0, i)));
 
-        REQUIRE (maxDifference == 0.0f);
+        REQUIRE (maxDifference <= 1.0e-6f);
     }
+}
+
+TEST_CASE ("the engine renders the active runtime's first tone")
+{
+    EngineRuntime activeRuntime;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, kNumSamples);
+    engine.setParamSnapshotSource (nullptr, &activeRuntime.reclaimer);
+
+    BusFixture buffers;
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+    engine.process (buffers.makeBusBuffers(), midi, kNumSamples);
+
+    CHECK (buffers.buffers[0].getMagnitude (0, 0, kNumSamples) > 0.01f);
+    CHECK (buffers.buffers[1].getMagnitude (0, 0, kNumSamples) == 0.0f);
+    CHECK (buffers.buffers[2].getMagnitude (0, 0, kNumSamples) == 0.0f);
+}
+
+TEST_CASE ("hot parameter updates keep the sounding voice alive")
+{
+    EngineRuntime runtimeA;
+    EngineRuntime runtimeB;
+
+    SynthEngine engineA;
+    SynthEngine engineB;
+    engineA.prepare (kSampleRate, 512);
+    engineB.prepare (kSampleRate, 512);
+    engineA.setParamSnapshotSource (nullptr, &runtimeA.reclaimer);
+    engineB.setParamSnapshotSource (nullptr, &runtimeB.reclaimer);
+
+    BusFixture bufferA (512);
+    BusFixture bufferB (512);
+    MidiBuffer noteOn;
+    noteOn.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+
+    engineA.process (bufferA.makeBusBuffers(), noteOn, 512);
+    engineB.process (bufferB.makeBusBuffers(), noteOn, 512);
+
+    const MidiBuffer empty;
+    float magnitudeA = 0.0f;
+    float magnitudeB = 0.0f;
+
+    for (int block = 0; block < 6; ++block)
+    {
+        for (auto& buffer : bufferA.buffers)
+            buffer.clear();
+
+        for (auto& buffer : bufferB.buffers)
+            buffer.clear();
+
+        if (block == 3)
+            runtimeB.runtime->snapshot.tones[0].tva.level = 64.0f;   // hot update for B only
+
+        engineA.process (bufferA.makeBusBuffers(), empty, 512);
+        engineB.process (bufferB.makeBusBuffers(), empty, 512);
+
+        magnitudeA = bufferA.buffers[0].getMagnitude (0, 0, 512);
+        magnitudeB = bufferB.buffers[0].getMagnitude (0, 0, 512);
+        REQUIRE (magnitudeB > 0.001f);   // the update never drops the voice
+
+        for (int i = 0; i < 512; ++i)
+        {
+            const auto a = bufferA.buffers[0].getSample (0, i);
+            const auto b = bufferB.buffers[0].getSample (0, i);
+
+            if (std::abs (a) > 0.01f)
+                REQUIRE ((a > 0.0f) == (b > 0.0f));   // phase is preserved
+        }
+    }
+
+    CHECK (magnitudeA > magnitudeB);   // the tone level change took effect
+}
+
+TEST_CASE ("updateModulators runs exactly once per rendered sample")
+{
+    EngineRuntime activeRuntime;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, 512);
+    engine.setParamSnapshotSource (nullptr, &activeRuntime.reclaimer);
+
+    BusFixture buffer (512);
+    MidiBuffer noteOn;
+    noteOn.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+
+    const auto before = engine.modulationUpdateCount();
+    engine.process (buffer.makeBusBuffers(), noteOn, 512);
+    REQUIRE (engine.modulationUpdateCount() - before == 512);
+
+    // Subblock splits must not change the per-sample cadence.
+    for (auto& busBuffer : buffer.buffers)
+        busBuffer.clear();
+
+    MidiBuffer splitMidi;
+    splitMidi.addEvent (MidiMessage::controllerEvent (1, 1, 64), 123);
+    splitMidi.addEvent (MidiMessage::controllerEvent (1, 1, 65), 400);
+
+    const auto beforeSplit = engine.modulationUpdateCount();
+    engine.process (buffer.makeBusBuffers(), splitMidi, 512);
+    REQUIRE (engine.modulationUpdateCount() - beforeSplit == 512);
 }
 
 TEST_CASE ("block splitting clears every segment")

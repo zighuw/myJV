@@ -23,6 +23,7 @@ set(MYJV_CORE_SOURCES
     Source/Engine/AssetReclaimer.cpp
     Source/Engine/AuditionVoice.cpp
     Source/Engine/SynthEngine.cpp
+    Source/Engine/ToneVoice.cpp
     Source/IO/LibraryIndex.cpp
     Source/IO/SampleImporter.cpp
     Source/Model/SampleLibrary.cpp
@@ -144,6 +145,7 @@ if(BUILD_TESTING)
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp
         Tests/test_main.cpp
+        Tests/tone_voice_tests.cpp
         Tests/waveform_tests.cpp
         Tests/zone_grid_tests.cpp
         Tests/zone_mapping_tests.cpp

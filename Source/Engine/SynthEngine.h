@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Engine/ToneVoice.h"
+
 #include <atomic>
+#include <cstdint>
 
 namespace juce
 {
@@ -48,9 +51,15 @@ public:
     // RT-safe
     void process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept;
 
+    // Diagnostics: temporary voice modulator cadence (one per rendered sample).
+    std::uint64_t modulationUpdateCount() const noexcept { return voice.modulationUpdateCount(); }
+
 private:
     // RT-safe
     void refreshActiveSnapshot() noexcept;
+
+    // RT-safe. Temporary single-voice path until VoiceManager lands (M3-01).
+    void startVoice (int note, float velocity) noexcept;
 
     // RT-safe
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
@@ -58,4 +67,7 @@ private:
     std::atomic<MidiEventSink*> midiSink { nullptr };
     std::atomic<const ParamSnapshotCache*> snapshotCache { nullptr };
     std::atomic<const AssetReclaimer*> snapshotReclaimer { nullptr };
+
+    ToneVoice voice;
+    std::uint64_t voiceSeed = 1;
 };
