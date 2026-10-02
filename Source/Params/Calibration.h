@@ -19,4 +19,22 @@ inline constexpr float kEnvLevelScale = 1.0f / 127.0f;
 
 // Maximum velocity time-scaling span for Vel Time 1/4 Sens (+-1 octave).
 inline constexpr double kEnvVelTimeOctaves = 1.0;
+
+// LFO (architecture 5.8 / appendix C, tuned by ear in M2-11).
+inline constexpr double kLfoRateMinHz = 0.05;
+inline constexpr double kLfoRateMaxHz = 20.0;
+inline constexpr double kChaosR = 3.9;
+inline constexpr double kLfoDelayMaxMs = 2000.0;
+inline constexpr double kLfoFadeMaxMs = 2000.0;
+inline constexpr double kLfoFadeCurve = 3.0;
+inline constexpr float kLfoLevelOffsetScale = 1.0f / 63.0f;
+
+// Beats per LFO cycle for the 18 Ext Sync divisions, slowest to fastest:
+// 1/1, 1/1., 1/1T, 1/2, 1/2., 1/2T, 1/4, 1/4., 1/4T, 1/8, 1/8., 1/8T,
+// 1/16, 1/16., 1/16T, 1/32, 1/32., 1/32T
+inline constexpr double kLfoSyncBeats[18]
+{
+    4.0, 6.0, 8.0 / 3.0, 2.0, 3.0, 4.0 / 3.0, 1.0, 1.5, 2.0 / 3.0,
+    0.5, 0.75, 1.0 / 3.0, 0.25, 0.375, 1.0 / 6.0, 0.125, 0.1875, 1.0 / 12.0
+};
 }
