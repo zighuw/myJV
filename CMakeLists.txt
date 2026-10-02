@@ -15,9 +15,11 @@ FetchContent_Declare(JUCE
 FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
+    Source/DSP/Biquad.cpp
     Source/DSP/Envelope.cpp
     Source/DSP/LFO.cpp
     Source/DSP/SamplePlayer.cpp
+    Source/DSP/SVF.cpp
     Source/Engine/AssetReclaimer.cpp
     Source/Engine/AuditionVoice.cpp
     Source/Engine/SynthEngine.cpp
@@ -133,6 +135,7 @@ if(BUILD_TESTING)
         Tests/diagnostics_tests.cpp
         Tests/engine_tests.cpp
         Tests/envelope_tests.cpp
+        Tests/filter_tests.cpp
         Tests/importer_tests.cpp
         Tests/lfo_tests.cpp
         Tests/library_tests.cpp
