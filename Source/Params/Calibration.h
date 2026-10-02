@@ -46,4 +46,14 @@ inline constexpr double kResonanceMaxQ = 20.0;
 inline constexpr double kPkgGainDb = 12.0;
 inline constexpr int kFilterControlRate = 16;          // coefficient refresh, in samples (M2-05)
 inline constexpr float kFilterStateLimit = 8.0f;       // SVF self-oscillation state guard
+
+// ToneVoice modulation depths (architecture 5.4/5.7; provisional, tuned in M2-11).
+inline constexpr double kPEnvDepthSemitones = 12.0;
+inline constexpr double kLfoPitchSemitones = 1.0;
+inline constexpr double kRandomPitchSemitones = 1.0;
+inline constexpr double kFEnvDepthOctaves = 4.0;
+inline constexpr double kLfoFilterDepthOctaves = 4.0;
+inline constexpr float kRandomPan = 1.0f;
+inline constexpr double kKillFadeMs = 5.0;
+inline constexpr float kToneOutputLevelScale = 1.0f / 127.0f;
 }
