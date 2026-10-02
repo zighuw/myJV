@@ -16,6 +16,7 @@ FetchContent_MakeAvailable(JUCE)
 
 set(MYJV_CORE_SOURCES
     Source/DSP/Envelope.cpp
+    Source/DSP/LFO.cpp
     Source/DSP/SamplePlayer.cpp
     Source/Engine/AssetReclaimer.cpp
     Source/Engine/AuditionVoice.cpp
@@ -133,6 +134,7 @@ if(BUILD_TESTING)
         Tests/engine_tests.cpp
         Tests/envelope_tests.cpp
         Tests/importer_tests.cpp
+        Tests/lfo_tests.cpp
         Tests/library_tests.cpp
         Tests/model_tests.cpp
         Tests/param_tests.cpp
