@@ -37,4 +37,13 @@ inline constexpr double kLfoSyncBeats[18]
     4.0, 6.0, 8.0 / 3.0, 2.0, 3.0, 4.0 / 3.0, 1.0, 1.5, 2.0 / 3.0,
     0.5, 0.75, 1.0 / 3.0, 0.25, 0.375, 1.0 / 6.0, 0.125, 0.1875, 1.0 / 12.0
 };
+
+// TVF (architecture 5.5 / appendix C, tuned by ear in M2-11).
+// cutoffHz = min * pow(max/min, c/127); Q = 0.5 * pow(kResonanceMaxQ/0.5, r/127).
+inline constexpr double kCutoffMinHz = 20.0;
+inline constexpr double kCutoffMaxHz = 20000.0;
+inline constexpr double kResonanceMaxQ = 20.0;
+inline constexpr double kPkgGainDb = 12.0;
+inline constexpr int kFilterControlRate = 16;          // coefficient refresh, in samples (M2-05)
+inline constexpr float kFilterStateLimit = 8.0f;       // SVF self-oscillation state guard
 }
