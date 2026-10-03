@@ -5,6 +5,7 @@
 #include "DSP/FXM.h"
 #include "DSP/LFO.h"
 #include "DSP/SamplePlayer.h"
+#include "DSP/Smoother.h"
 #include "DSP/SVF.h"
 #include "Engine/ModulationMatrix.h"
 
@@ -99,6 +100,7 @@ private:
     };
 
     void updateFilterCoefficients() noexcept;
+    void snapSmoothers() noexcept;
 
     State voiceState = State::Free;
     const PatchRuntime* runtime = nullptr;
@@ -132,6 +134,12 @@ private:
     ModulationMatrix matrix;
     ModulationInput modulationInput;
     int modulationBlockSamples = 512;
+
+    Smoother levelSmoother;
+    Smoother outputSmoother;
+    Smoother panSmoother;
+    Smoother cutoffSmoother;
+    Smoother resonanceSmoother;
 
     SamplePlayer player;
     Envelope pEnv;

@@ -543,12 +543,12 @@ TEST_CASE ("tone level hot updates scale without resetting the phase")
 
         std::vector<float> out;
 
-        for (int i = 0; i < 2000; ++i)
+        for (int i = 0; i < 4000; ++i)
         {
             if (i % 16 == 0)
                 voice.beginBlock();
 
-            if (changeLevel && i == 1000)
+            if (changeLevel && i == 500)
                 fixture.runtime->snapshot.tones[0].tva.level = 64.0f;
 
             voice.updateModulators();
@@ -561,10 +561,13 @@ TEST_CASE ("tone level hot updates scale without resetting the phase")
     const auto reference = render (false);
     const auto changed = render (true);
 
-    for (int i = 200; i < 900; ++i)
+    // Identical before the change.
+    for (int i = 200; i < 490; ++i)
         REQUIRE (changed[(std::size_t) i] == Catch::Approx (reference[(std::size_t) i]).margin (1.0e-6));
 
-    for (int i = 1100; i < 1900; ++i)
+    // After the 10 ms level smoothing has settled the ratio converges to the
+    // new level while the sample phase is preserved.
+    for (int i = 3000; i < 3900; ++i)
     {
         if (std::abs (reference[(std::size_t) i]) > 0.05f)
         {
