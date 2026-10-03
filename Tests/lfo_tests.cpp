@@ -435,3 +435,27 @@ TEST_CASE ("every non-offset waveform stays within -1..1")
         }
     }
 }
+
+TEST_CASE ("the rate multiplier scales the lfo frequency")
+{
+    LFO lfo;
+    lfo.prepare (kSampleRate);
+    lfo.start (makeSettings (Saw, 127.0f), 1, 120.0);
+    lfo.setRateMultiplier (2.0f);   // 20 Hz -> 40 Hz -> 25 samples per cycle at 1 kHz
+
+    int period = 0;
+    float previous = lfo.process();
+
+    for (int i = 1; i < 200; ++i)
+    {
+        const auto value = lfo.process();
+        ++period;
+
+        if (value < previous - 1.0f)
+            break;
+
+        previous = value;
+    }
+
+    REQUIRE (period == Catch::Approx (25).margin (1));
+}

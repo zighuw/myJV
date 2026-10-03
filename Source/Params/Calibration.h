@@ -66,4 +66,15 @@ inline constexpr double kNoteEndFadeMs = 1.0;
 inline constexpr double kKeyIntervalReferenceMs = 250.0;
 inline constexpr float kKeyIntervalScaleMin = 0.25f;
 inline constexpr float kKeyIntervalScaleMax = 4.0f;
+
+// Control matrix (architecture 5.9; provisional, tuned in M2-11).
+inline constexpr double kMatrixPitchSemitones = 12.0;
+inline constexpr double kMatrixCutoffOctaves = 4.0;
+inline constexpr double kMatrixResonanceOctaves = 2.0;
+inline constexpr double kMatrixLevelDb = 12.0;
+inline constexpr double kMatrixLfoRateOctaves = 2.0;
+inline constexpr double kMatrixLfoDepthRange = 1.0;
+inline constexpr double kMatrixEnvLevelRange = 1.0;
+inline constexpr double kModSmoothingMs = 10.0;
+inline constexpr double kLfoAmpDepth = 1.0;
 }

@@ -23,6 +23,7 @@ set(MYJV_CORE_SOURCES
     Source/DSP/SVF.cpp
     Source/Engine/AssetReclaimer.cpp
     Source/Engine/AuditionVoice.cpp
+    Source/Engine/ModulationMatrix.cpp
     Source/Engine/SynthEngine.cpp
     Source/Engine/ToneVoice.cpp
     Source/IO/LibraryIndex.cpp
@@ -142,6 +143,7 @@ if(BUILD_TESTING)
         Tests/lfo_tests.cpp
         Tests/library_tests.cpp
         Tests/model_tests.cpp
+        Tests/modulation_tests.cpp
         Tests/param_tests.cpp
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp

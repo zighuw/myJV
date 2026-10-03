@@ -14,6 +14,12 @@ void SynthEngine::prepare (double newSampleRate, int) noexcept
     totalSamples = 0;
     lastNoteOnSample = 0;
     hasLastNoteOn = false;
+
+    for (auto& value : ccValues)
+        value = 0.0f;
+
+    pitchBendValue = 0.0f;
+    aftertouchValue = 0.0f;
     voice.prepare (sampleRate);
 }
 
@@ -80,9 +86,38 @@ void SynthEngine::startVoice (int note, float velocity) noexcept
 }
 
 // RT-safe
+void SynthEngine::refreshModulationInput (int numSamples) noexcept
+{
+    ModulationInput input;
+
+    for (int i = 0; i < 128; ++i)
+        input.cc[i] = ccValues[i];
+
+    input.pitchBend = pitchBendValue;
+    input.aftertouch = aftertouchValue;
+    input.sourceIndex[0] = 0;   // Control 1 is fixed to Modulation (CC1)
+
+    const auto* reclaimer = snapshotReclaimer.load (std::memory_order_acquire);
+    const auto* active = reclaimer != nullptr ? reclaimer->activeForAudio() : nullptr;
+
+    if (active != nullptr)
+    {
+        const auto& common = active->snapshot.common;
+        input.sourceIndex[1] = common.ctrlSource2;
+        input.sourceIndex[2] = common.ctrlSource3;
+        input.holdPeakMode[0] = common.ctrl1HoldPeak;
+        input.holdPeakMode[1] = common.ctrl2HoldPeak;
+        input.holdPeakMode[2] = common.ctrl3HoldPeak;
+    }
+
+    voice.setModulationInput (input, numSamples);
+}
+
+// RT-safe
 void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept
 {
     refreshActiveSnapshot();
+    refreshModulationInput (numSamples);
     voice.beginBlock();
 
     int currentSample = 0;
@@ -100,18 +135,39 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
             currentSample = eventSample;
         }
 
-        // Zero-copy note parsing (M0-05 / M1-F07): no MidiMessage construction
-        // on the audio thread, so long messages can never allocate here.
-        if (metadata.numBytes >= 3)
+        // Zero-copy parsing (M0-05 / M1-F07): no MidiMessage construction on
+        // the audio thread, so long messages can never allocate here.
+        if (metadata.numBytes >= 2)
         {
             const auto status = metadata.data[0] & 0xf0;
-            const auto note = metadata.data[1] & 0x7f;
-            const auto data2 = metadata.data[2] & 0x7f;
+            const auto data1 = metadata.data[1] & 0x7f;
 
-            if (status == 0x90 && data2 > 0)
-                startVoice (note, (float) data2 / 127.0f);
-            else if (status == 0x80 || (status == 0x90 && data2 == 0))
+            if (status == 0x90 && metadata.numBytes >= 3)
+            {
+                const auto velocity = metadata.data[2] & 0x7f;
+
+                if (velocity > 0)
+                    startVoice (data1, (float) velocity / 127.0f);
+                else
+                    voice.release();
+            }
+            else if (status == 0x80 && metadata.numBytes >= 3)
+            {
                 voice.release();
+            }
+            else if (status == 0xB0 && metadata.numBytes >= 3)
+            {
+                ccValues[data1] = (float) (metadata.data[2] & 0x7f) / 127.0f;
+            }
+            else if (status == 0xE0 && metadata.numBytes >= 3)
+            {
+                const auto value = ((int) (metadata.data[2] & 0x7f) << 7) | (int) data1;
+                pitchBendValue = (float) (value - 8192) / 8192.0f;
+            }
+            else if (status == 0xD0)
+            {
+                aftertouchValue = (float) data1 / 127.0f;
+            }
         }
 
         if (auto* sink = midiSink.load (std::memory_order_acquire))
