@@ -961,3 +961,96 @@ TEST_CASE ("a one-shot voice fades out at the sample end")
 
     REQUIRE (std::abs (out.back()) < 0.05f);
 }
+
+TEST_CASE ("the control matrix drives pitch, cutoff and pan")
+{
+    auto tone = makeDefaultTone (64.0f);
+    tone.ctrl[0].dest[0] = 1;   // PITCH
+    tone.ctrl[0].depth[0] = 63;
+    tone.ctrl[0].dest[1] = 5;   // PAN
+    tone.ctrl[0].depth[1] = 63;
+    tone.ctrl[1].dest[0] = 2;   // CUTOFF
+    tone.ctrl[1].depth[0] = 63;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample (100.0, 44100), LoopMode::Sustain));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    ModulationInput neutral;
+    neutral.sourceIndex[0] = 0;
+    neutral.sourceIndex[1] = 0;
+    voice.setModulationInput (neutral, 480);
+    voice.beginBlock();
+    voice.updateModulators();
+    const auto baseCutoff = voice.currentCutoffHz();
+    REQUIRE (baseCutoff < 1000.0f);
+
+    ModulationInput input;
+    input.sourceIndex[0] = 0;   // group 1 resolves CC1
+    input.sourceIndex[1] = 0;
+    input.holdPeakMode[0] = 1;  // PEAK keeps the maximum
+    input.holdPeakMode[1] = 1;
+    input.cc[1] = 1.0f;
+
+    for (int block = 0; block < 300; ++block)
+    {
+        voice.setModulationInput (input, 480);
+        voice.beginBlock();
+
+        for (int i = 0; i < 16; ++i)
+            voice.updateModulators();
+    }
+
+    CHECK (voice.currentPitchOffsetSemitones() == Catch::Approx (12.0f).margin (0.3f));
+    CHECK (voice.currentCutoffHz() > baseCutoff * 8.0f);
+
+    BusFixture buffer (512);
+    const auto buses = buffer.make();
+    voice.setModulationInput (input, 512);
+    voice.beginBlock();
+
+    for (int i = 0; i < 512; ++i)
+    {
+        BusBuffers cursor;
+
+        for (int bus = 0; bus < kNumOutputBuses; ++bus)
+        {
+            cursor.l[bus] = buses.l[bus] != nullptr ? buses.l[bus] + i : nullptr;
+            cursor.r[bus] = buses.r[bus] != nullptr ? buses.r[bus] + i : nullptr;
+        }
+
+        voice.updateModulators();
+        voice.addToBus (voice.processTVA (voice.processTVF (voice.processWG())), cursor);
+    }
+
+    CHECK (buffer.buffers[0].getMagnitude (1, 0, 512) > buffer.buffers[0].getMagnitude (0, 0, 512));
+}
+
+TEST_CASE ("the amp lfo modulates the gain")
+{
+    auto tone = makeDefaultTone();
+    tone.tva.lfo1Depth = 127.0f;
+    tone.lfo[0].rate = 127.0f;   // 20 Hz
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample (100.0, 24000)));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    float minimum = 10.0f;
+    float maximum = -10.0f;
+
+    for (int i = 0; i < 4800; ++i)
+    {
+        if (i % 16 == 0)
+            voice.beginBlock();
+
+        voice.updateModulators();
+        minimum = std::min (minimum, voice.currentGain());
+        maximum = std::max (maximum, voice.currentGain());
+    }
+
+    REQUIRE (maximum > 1.5f);
+    REQUIRE (minimum < 0.5f);
+}

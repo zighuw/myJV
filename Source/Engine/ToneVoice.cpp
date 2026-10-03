@@ -104,6 +104,7 @@ void ToneVoice::prepare (double engineSampleRate) noexcept
     aEnv.prepare (sampleRate);
     lfo[0].prepare (sampleRate);
     lfo[1].prepare (sampleRate);
+    matrix.prepare (sampleRate);
     reset();
 }
 
@@ -116,6 +117,7 @@ void ToneVoice::reset() noexcept
     filter.reset();
     peaking.reset();
     fxm.reset();
+    matrix.reset();
     killGain = 1.0f;
     killStep = 0.0f;
     pitchOffset = 0.0f;
@@ -264,12 +266,22 @@ void ToneVoice::kill() noexcept
 }
 
 // RT-safe
+void ToneVoice::setModulationInput (const ModulationInput& input, int blockSamples) noexcept
+{
+    modulationInput = input;
+    modulationBlockSamples = std::max (0, blockSamples);
+}
+
+// RT-safe
 void ToneVoice::beginBlock() noexcept
 {
     if (voiceState == State::Free || runtime == nullptr)
         return;
 
     const auto& tone = runtime->snapshot.tones[toneIndex];
+
+    matrix.update (modulationInput, modulationBlockSamples);
+    block.mod = matrix.evaluate (tone.ctrl);
 
     block.filterType = tone.tvf.type;
     block.baseCutoffHz = (float) cutoffParamToHz (tone.tvf.cutoff);
@@ -298,6 +310,16 @@ void ToneVoice::beginBlock() noexcept
     block.fxmColor = tone.wg.fxmColor;
     block.fxmDepth = tone.wg.fxmDepth;
     fxm.setParameters (block.fxmOn, block.fxmColor, block.fxmDepth);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        block.pitchLfoDepth[i] *= block.mod.lfoPitchDepthScale[i];
+        block.lfoCutoffDepth[i] *= block.mod.lfoCutoffDepthScale[i];
+        block.panLfoDepth[i] *= block.mod.lfoPanDepthScale[i];
+        block.tvaLfoDepth[i] = (i == 0 ? tone.tva.lfo1Depth : tone.tva.lfo2Depth)
+                               / 127.0f * (float) Calibration::kLfoAmpDepth;
+        lfo[i].setRateMultiplier (std::exp2 (block.mod.lfoRateOctaves[i]));
+    }
 }
 
 // RT-safe
@@ -390,7 +412,8 @@ void ToneVoice::updateModulators() noexcept
 
     pitchOffset = block.pitchKeyfollowScale
                   + randomPitchSemitones
-                  + block.pEnvDepthSemis * pEnv.level()
+                  + block.mod.pitchSemitones
+                  + block.pEnvDepthSemis * pEnv.level() * block.mod.envLevelScale[0]
                   + block.pitchLfoDepth[0] * lfo[0].value()
                   + block.pitchLfoDepth[1] * lfo[1].value();
 
@@ -404,7 +427,15 @@ void ToneVoice::updateModulators() noexcept
 
     --filterControlCounter;
 
-    activeGain = aEnv.level() * block.toneLevel * killGain;
+    auto gain = aEnv.level() * block.toneLevel * killGain;
+    gain *= std::pow (10.0f, block.mod.levelDb / 20.0f);
+    gain *= block.mod.envLevelScale[2];
+
+    for (int i = 0; i < 2; ++i)
+        gain *= std::clamp (1.0f + block.tvaLfoDepth[i] * lfo[i].value() * block.mod.lfoAmpDepthScale[i],
+                            0.0f, 2.0f);
+
+    activeGain = gain;
 }
 
 // RT-safe
@@ -465,7 +496,7 @@ void ToneVoice::addToBus (float sample, BusBuffers& buses) noexcept
     if (voiceState == State::Free)
         return;
 
-    const auto pan = std::clamp (block.panBase + block.panKey + randomPan
+    const auto pan = std::clamp (block.panBase + block.panKey + randomPan + block.mod.pan
                                      + block.panLfoDepth[0] * lfo[0].value()
                                      + block.panLfoDepth[1] * lfo[1].value(),
                                  -1.0f, 1.0f);
@@ -486,7 +517,8 @@ void ToneVoice::addToBus (float sample, BusBuffers& buses) noexcept
 void ToneVoice::updateFilterCoefficients() noexcept
 {
     const auto octaves = block.keyfollowOctaves
-                         + block.fEnvDepth * fEnv.level()
+                         + block.mod.cutoffOctaves
+                         + block.fEnvDepth * fEnv.level() * block.mod.envLevelScale[1]
                          + block.lfoCutoffDepth[0] * lfo[0].value()
                          + block.lfoCutoffDepth[1] * lfo[1].value();
 
@@ -497,5 +529,6 @@ void ToneVoice::updateFilterCoefficients() noexcept
     if (block.filterType == 4)
         peaking.setPeaking (activeCutoffHz, 1.0f, block.pkgGainDb);
     else if (block.filterType >= 1 && block.filterType <= 3)
-        filter.setCoefficients (activeCutoffHz, block.baseQ);
+        filter.setCoefficients (activeCutoffHz,
+                                block.baseQ * std::exp2 (block.mod.resonanceOctaves));
 }

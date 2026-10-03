@@ -620,3 +620,85 @@ TEST_CASE ("block splitting clears every segment")
     for (int bus = 0; bus < kNumOutputBuses; ++bus)
         CHECK (fixture.buffers[bus].getMagnitude (0, 0, kNumSamples) == 0.0f);
 }
+
+TEST_CASE ("the engine routes cc input into the control matrix")
+{
+    const auto countZeroCrossings = [] (const AudioBuffer<float>& buffer, int start, int samples)
+    {
+        int crossings = 0;
+        auto previous = buffer.getSample (0, start);
+
+        for (int i = start + 1; i < start + samples; ++i)
+        {
+            const auto value = buffer.getSample (0, i);
+
+            if ((previous <= 0.0f && value > 0.0f) || (previous >= 0.0f && value < 0.0f))
+                ++crossings;
+
+            previous = value;
+        }
+
+        return crossings;
+    };
+
+    EngineRuntime plain;
+    EngineRuntime modulated;
+    modulated.runtime->snapshot.tones[0].ctrl[0].dest[0] = 1;   // PITCH
+    modulated.runtime->snapshot.tones[0].ctrl[0].depth[0] = 63;
+
+    SynthEngine plainEngine;
+    SynthEngine modulatedEngine;
+    plainEngine.prepare (kSampleRate, 512);
+    modulatedEngine.prepare (kSampleRate, 512);
+    plainEngine.setParamSnapshotSource (nullptr, &plain.reclaimer);
+    modulatedEngine.setParamSnapshotSource (nullptr, &modulated.reclaimer);
+
+    BusFixture plainBuffer (512);
+    BusFixture modulatedBuffer (512);
+
+    MidiBuffer plainMidi;
+    plainMidi.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+
+    MidiBuffer modulatedMidi;
+    modulatedMidi.addEvent (MidiMessage::controllerEvent (1, 1, 127), 0);
+    modulatedMidi.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 1);
+
+    plainEngine.process (plainBuffer.makeBusBuffers(), plainMidi, 512);
+    modulatedEngine.process (modulatedBuffer.makeBusBuffers(), modulatedMidi, 512);
+
+    const MidiBuffer empty;
+
+    for (int block = 0; block < 8; ++block)
+    {
+        for (auto& buffer : plainBuffer.buffers)
+            buffer.clear();
+
+        for (auto& buffer : modulatedBuffer.buffers)
+            buffer.clear();
+
+        plainEngine.process (plainBuffer.makeBusBuffers(), empty, 512);
+        modulatedEngine.process (modulatedBuffer.makeBusBuffers(), empty, 512);
+    }
+
+    REQUIRE (plainBuffer.buffers[0].getMagnitude (0, 0, 512) > 0.001f);
+    REQUIRE (modulatedBuffer.buffers[0].getMagnitude (0, 0, 512) > 0.001f);
+    REQUIRE (countZeroCrossings (modulatedBuffer.buffers[0], 0, 512)
+             > countZeroCrossings (plainBuffer.buffers[0], 0, 512));
+}
+
+TEST_CASE ("pitch bend and aftertouch events keep the engine rendering")
+{
+    EngineRuntime activeRuntime;
+    SynthEngine engine;
+    engine.prepare (kSampleRate, 512);
+    engine.setParamSnapshotSource (nullptr, &activeRuntime.reclaimer);
+
+    BusFixture buffer (512);
+    MidiBuffer midi;
+    midi.addEvent (MidiMessage::pitchWheel (1, 10000), 0);
+    midi.addEvent (MidiMessage::aftertouchChange (1, 60, 100), 10);
+    midi.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 20);
+    engine.process (buffer.makeBusBuffers(), midi, 512);
+
+    REQUIRE (buffer.buffers[0].getMagnitude (0, 0, 512) > 0.001f);
+}

@@ -61,6 +61,9 @@ private:
     // RT-safe. Temporary single-voice path until VoiceManager lands (M3-01).
     void startVoice (int note, float velocity) noexcept;
 
+    // RT-safe. Publishes the tracked controller state to the voice.
+    void refreshModulationInput (int numSamples) noexcept;
+
     // RT-safe
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
 
@@ -74,4 +77,8 @@ private:
     std::uint64_t totalSamples = 0;
     std::uint64_t lastNoteOnSample = 0;
     bool hasLastNoteOn = false;
+
+    float ccValues[128] {};
+    float pitchBendValue = 0.0f;
+    float aftertouchValue = 0.0f;
 };

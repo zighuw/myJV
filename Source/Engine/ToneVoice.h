@@ -6,6 +6,7 @@
 #include "DSP/LFO.h"
 #include "DSP/SamplePlayer.h"
 #include "DSP/SVF.h"
+#include "Engine/ModulationMatrix.h"
 
 #include <cstdint>
 
@@ -41,7 +42,11 @@ public:
     void kill() noexcept;
 
     // RT-safe. Caches the per-block parameter decisions (architecture 5.5:
-    // filter type and base values are read once per block).
+    // filter type and base values are read once per block). The engine feeds
+    // the raw controller state before this call.
+    void setModulationInput (const ModulationInput& input, int blockSamples) noexcept;
+
+    // RT-safe.
     void beginBlock() noexcept;
 
     // RT-safe. LFO1/2 -> P-ENV -> F-ENV -> A-ENV, pitch and modulation sums;
@@ -89,6 +94,8 @@ private:
         bool fxmOn = false;
         int fxmColor = 1;
         float fxmDepth = 0.0f;
+        float tvaLfoDepth[2] {};
+        ModulationOutputs mod;
     };
 
     void updateFilterCoefficients() noexcept;
@@ -121,6 +128,10 @@ private:
     float lastWgSample = 0.0f;
 
     BlockParams block;
+
+    ModulationMatrix matrix;
+    ModulationInput modulationInput;
+    int modulationBlockSamples = 512;
 
     SamplePlayer player;
     Envelope pEnv;

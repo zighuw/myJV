@@ -33,6 +33,10 @@ public:
     // RT-safe. Note-On. `tempoBpm` is used only when settings.sync is set.
     void start (const LfoSettings& settings, std::uint64_t seed, double tempoBpm) noexcept;
 
+    // RT-safe. Live frequency multiplier from the control matrix (2^octaves).
+    // start() resets it to 1.
+    void setRateMultiplier (float multiplier) noexcept;
+
     // RT-safe. Returns to an inactive, silent state.
     void reset() noexcept;
 
@@ -51,6 +55,7 @@ private:
     LfoSettings settings;
     double sampleRate = 48000.0;
     double frequency = 0.0;
+    float rateMultiplier = 1.0f;
     float phase = 0.0f;             // [0, 1)
     float offset = 0.0f;
     float currentOutput = 0.0f;

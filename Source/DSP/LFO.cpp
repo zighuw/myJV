@@ -48,6 +48,7 @@ void LFO::start (const LfoSettings& newSettings, std::uint64_t seed, double temp
         phase = 0.0f;
 
     frequency = settings.sync ? syncHz (settings.rate, tempoBpm) : rateToHz (settings.rate);
+    rateMultiplier = 1.0f;
     offset = std::clamp ((float) settings.levelOffset * Calibration::kLfoLevelOffsetScale, -1.0f, 1.0f);
 
     delayRemaining = timeToSamples (settings.delayTime, Calibration::kLfoDelayMaxMs, sampleRate);
@@ -68,6 +69,12 @@ void LFO::start (const LfoSettings& newSettings, std::uint64_t seed, double temp
 
     active = true;
     currentOutput = offset;
+}
+
+// RT-safe
+void LFO::setRateMultiplier (float multiplier) noexcept
+{
+    rateMultiplier = std::clamp (multiplier, 0.01f, 100.0f);
 }
 
 // RT-safe
@@ -102,7 +109,7 @@ float LFO::process() noexcept
 
     currentOutput = offset + fadeValue() * wave;
 
-    phase += (float) (frequency / sampleRate);
+    phase += (float) (frequency * (double) rateMultiplier / sampleRate);
 
     if (phase >= 1.0f)
     {
