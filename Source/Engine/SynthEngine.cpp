@@ -1,13 +1,19 @@
 #include "SynthEngine.h"
 
+#include "Params/Calibration.h"
 #include "Params/ParamSnapshotCache.h"
 
+#include <algorithm>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 // non-RT: prepare may allocate (architecture 5.3 - buffer allocation and state
 // reset happen here, off the audio thread). M2 wires the Tone voices in.
-void SynthEngine::prepare (double sampleRate, int) noexcept
+void SynthEngine::prepare (double newSampleRate, int) noexcept
 {
+    sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;
+    totalSamples = 0;
+    lastNoteOnSample = 0;
+    hasLastNoteOn = false;
     voice.prepare (sampleRate);
 }
 
@@ -50,8 +56,27 @@ void SynthEngine::startVoice (int note, float velocity) noexcept
     if (reclaimer == nullptr)
         return;
 
-    if (const auto* active = reclaimer->activeForAudio())
-        voice.startNote (active, 0, note, velocity, voiceSeed++);
+    const auto* active = reclaimer->activeForAudio();
+
+    if (active == nullptr)
+        return;
+
+    // Tone Delay KEY INTERVAL uses the previous Note-On spacing (M4-06 refines).
+    auto intervalScale = 1.0f;
+
+    if (hasLastNoteOn)
+    {
+        const auto reference = std::max (1.0, sampleRate * Calibration::kKeyIntervalReferenceMs / 1000.0);
+        const auto interval = totalSamples > lastNoteOnSample ? totalSamples - lastNoteOnSample : 0;
+        intervalScale = std::clamp ((float) ((double) interval / reference),
+                                    Calibration::kKeyIntervalScaleMin,
+                                    Calibration::kKeyIntervalScaleMax);
+    }
+
+    lastNoteOnSample = totalSamples;
+    hasLastNoteOn = true;
+
+    voice.startNote (active, 0, note, velocity, voiceSeed++, intervalScale);
 }
 
 // RT-safe
@@ -95,6 +120,8 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
 
     if (currentSample < numSamples)
         renderSegment (buses, currentSample, numSamples - currentSample);
+
+    totalSamples += (std::uint64_t) std::max (0, numSamples);
 }
 
 // RT-safe

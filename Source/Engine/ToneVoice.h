@@ -2,6 +2,7 @@
 
 #include "DSP/Biquad.h"
 #include "DSP/Envelope.h"
+#include "DSP/FXM.h"
 #include "DSP/LFO.h"
 #include "DSP/SamplePlayer.h"
 #include "DSP/SVF.h"
@@ -30,8 +31,10 @@ public:
 
     // RT-safe. Reads the runtime's ToneSnapshot and ZoneSet; tone switch off,
     // no zone or a null-sample zone leaves the voice Free (silent).
+    // keyIntervalScale feeds the Tone Delay KEY INTERVAL mode (M4-06 refines).
     void startNote (const PatchRuntime* runtime, int toneIndex, int midiNote,
-                    float velocity, std::uint64_t rngSeed) noexcept;
+                    float velocity, std::uint64_t rngSeed,
+                    float keyIntervalScale = 1.0f) noexcept;
 
     // RT-safe.
     void release() noexcept;
@@ -82,6 +85,10 @@ private:
         float pitchKeyfollowScale = 0.0f;
         float pEnvDepthSemis = 0.0f;
         float pitchLfoDepth[2] {};
+        float waveGain = 1.0f;
+        bool fxmOn = false;
+        int fxmColor = 1;
+        float fxmDepth = 0.0f;
     };
 
     void updateFilterCoefficients() noexcept;
@@ -103,6 +110,16 @@ private:
     float activeGain = 1.0f;
     std::uint64_t modulatorCalls = 0;
 
+    // WG / Tone Delay / end-fade state.
+    bool delayStarted = true;
+    bool startOnNoteOff = false;
+    int delayRemaining = 0;
+    int holdDelaySamples = 0;
+    int endFadeRemaining = 0;
+    int endFadeTotal = 0;
+    bool ending = false;
+    float lastWgSample = 0.0f;
+
     BlockParams block;
 
     SamplePlayer player;
@@ -112,4 +129,5 @@ private:
     LFO lfo[2];
     SVF filter;
     Biquad peaking;
+    FXM fxm;
 };

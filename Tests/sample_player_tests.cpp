@@ -594,3 +594,60 @@ TEST_CASE ("render sample player wavs", "[.wav]")
         REQUIRE (writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples()));
     }
 }
+
+TEST_CASE ("phase modulation offsets the next read position")
+{
+    auto sample = makeRampSample (1000);
+    const auto step = 0.006f;
+
+    SamplePlayer plain;
+    plain.start (sample, makeZone(), 60, kPlayerSampleRate);
+
+    for (int i = 0; i < fadeInSamples(); ++i)
+        plain.getNextSample();
+
+    plain.getNextSample();
+    const auto plainNext = plain.getNextSample();
+
+    SamplePlayer modulated;
+    modulated.start (sample, makeZone(), 60, kPlayerSampleRate);
+
+    for (int i = 0; i < fadeInSamples(); ++i)
+        modulated.getNextSample();
+
+    modulated.getNextSample();
+    modulated.setPhaseModulation (10.0f);
+    const auto shifted = modulated.getNextSample();
+
+    REQUIRE (shifted == Catch::Approx (plainNext + 10.0f * step).margin (1.0e-3f));
+}
+
+TEST_CASE ("phase modulation resets on start and clamps out-of-range reads")
+{
+    auto sample = makeRampSample (1000);
+    SamplePlayer player;
+    player.start (sample, makeZone(), 60, kPlayerSampleRate);
+
+    SamplePlayer reference;
+    reference.start (sample, makeZone(), 60, kPlayerSampleRate);
+
+    for (int i = 0; i < fadeInSamples(); ++i)
+        player.getNextSample();
+
+    player.setPhaseModulation (100000.0f);
+    const auto extreme = player.getNextSample();
+
+    REQUIRE (std::isfinite (extreme));
+    REQUIRE (std::abs (extreme) <= 1000.0f * 0.006f + 1.0e-3f);
+
+    player.setPhaseModulation (100000.0f);
+    player.start (sample, makeZone(), 60, kPlayerSampleRate);
+
+    for (int i = 0; i < fadeInSamples(); ++i)
+    {
+        player.getNextSample();
+        reference.getNextSample();
+    }
+
+    REQUIRE (player.getNextSample() == reference.getNextSample());
+}

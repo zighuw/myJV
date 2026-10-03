@@ -56,4 +56,14 @@ inline constexpr double kLfoFilterDepthOctaves = 4.0;
 inline constexpr float kRandomPan = 1.0f;
 inline constexpr double kKillFadeMs = 5.0;
 inline constexpr float kToneOutputLevelScale = 1.0f / 127.0f;
+
+// WG (architecture 5.4/5.11; provisional, tuned in M2-11).
+inline constexpr float kWaveGainDb[4] = { -6.0f, 0.0f, 6.0f, 12.0f };
+inline constexpr double kFxmDepthSamples = 32.0;
+inline constexpr double kToneDelayMinMs = 1.0;
+inline constexpr double kToneDelayMaxMs = 2000.0;
+inline constexpr double kNoteEndFadeMs = 1.0;
+inline constexpr double kKeyIntervalReferenceMs = 250.0;
+inline constexpr float kKeyIntervalScaleMin = 0.25f;
+inline constexpr float kKeyIntervalScaleMax = 4.0f;
 }

@@ -70,4 +70,8 @@ private:
 
     ToneVoice voice;
     std::uint64_t voiceSeed = 1;
+    double sampleRate = 48000.0;
+    std::uint64_t totalSamples = 0;
+    std::uint64_t lastNoteOnSample = 0;
+    bool hasLastNoteOn = false;
 };

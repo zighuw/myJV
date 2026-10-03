@@ -17,6 +17,7 @@ FetchContent_MakeAvailable(JUCE)
 set(MYJV_CORE_SOURCES
     Source/DSP/Biquad.cpp
     Source/DSP/Envelope.cpp
+    Source/DSP/FXM.cpp
     Source/DSP/LFO.cpp
     Source/DSP/SamplePlayer.cpp
     Source/DSP/SVF.cpp

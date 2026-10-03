@@ -698,3 +698,266 @@ TEST_CASE ("retriggering restarts the sample")
     CHECK (remaining >= kFrames - 100);
     CHECK (remaining <= kFrames + 200);
 }
+
+TEST_CASE ("wave gain applies the -6/0/+6/+12 dB table")
+{
+    const auto renderGain = [] (int waveGainChoice)
+    {
+        auto tone = makeDefaultTone();
+        tone.wg.waveGain = waveGainChoice;
+
+        ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+        ToneVoice voice;
+        voice.prepare (kSampleRate);
+        voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+        return rms (renderVoice (voice, 4000));
+    };
+
+    const auto unity = renderGain (1);
+
+    for (int choice = 0; choice < 4; ++choice)
+    {
+        const auto expected = unity * std::pow (10.0f, Calibration::kWaveGainDb[choice] / 20.0f);
+        INFO ("wave gain choice " << choice);
+        REQUIRE (renderGain (choice) == Catch::Approx (expected).epsilon (0.02));
+    }
+}
+
+TEST_CASE ("fxm modulates the read phase when enabled")
+{
+    const auto renderFxm = [] (bool enabled, int color, float depth)
+    {
+        auto tone = makeDefaultTone();
+        tone.wg.fxmOn = enabled;
+        tone.wg.fxmColor = color;
+        tone.wg.fxmDepth = depth;
+
+        ToneFixture fixture (tone, makeZoneSet (makeSineSample (100.0, 24000)));
+        ToneVoice voice;
+        voice.prepare (kSampleRate);
+        voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+        return renderVoice (voice, 2000);
+    };
+
+    const auto deviation = [] (const std::vector<float>& a, const std::vector<float>& b)
+    {
+        double sum = 0.0;
+
+        for (std::size_t i = 0; i < a.size(); ++i)
+            sum += ((double) a[i] - (double) b[i]) * ((double) a[i] - (double) b[i]);
+
+        return sum;
+    };
+
+    const auto dry = renderFxm (false, 1, 127.0f);
+    const auto shallow = renderFxm (true, 7, 32.0f);
+    const auto deep = renderFxm (true, 7, 127.0f);
+
+    REQUIRE (deviation (deep, dry) > 0.0);
+    REQUIRE (deviation (deep, dry) > deviation (shallow, dry));
+}
+
+TEST_CASE ("tone delay freezes the modulators and the output until it elapses")
+{
+    auto tone = makeDefaultTone();
+    tone.wg.toneDelayMode = 0;
+    tone.wg.toneDelayTime = 64.0f;
+    tone.tva.aEnv.time[0] = 64.0f;   // 147 ms attack makes a reset modulator audibly different
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    const auto mappedMs = Calibration::kToneDelayMinMs
+                          * std::pow (Calibration::kToneDelayMaxMs / Calibration::kToneDelayMinMs,
+                                      (double) 64.0f / 127.0);
+    const auto delaySamples = (int) std::lround (mappedMs * kSampleRate / 1000.0);
+
+    const auto updatesBefore = voice.modulationUpdateCount();
+
+    for (int i = 0; i < delaySamples; ++i)
+    {
+        if (i % 16 == 0)
+            voice.beginBlock();
+
+        voice.updateModulators();
+        REQUIRE (voice.processTVA (voice.processTVF (voice.processWG())) == 0.0f);
+        REQUIRE (voice.currentGain() == 0.0f);
+    }
+
+    REQUIRE (voice.modulationUpdateCount() - updatesBefore == (std::uint64_t) delaySamples);
+
+    // The envelope must not have advanced during the delay: the first audible
+    // sample still starts the 147 ms attack from zero.
+    voice.updateModulators();
+    REQUIRE (voice.currentGain() < 0.05f);
+}
+
+TEST_CASE ("note-off during the tone delay cancels a normal-mode voice")
+{
+    auto tone = makeDefaultTone();
+    tone.wg.toneDelayMode = 0;
+    tone.wg.toneDelayTime = 64.0f;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    voice.release();
+    CHECK (voice.finished());
+}
+
+TEST_CASE ("tone delay hold starts the countdown on note-off")
+{
+    auto tone = makeDefaultTone();
+    tone.wg.toneDelayMode = 1;   // HOLD
+    tone.wg.toneDelayTime = 64.0f;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    for (int i = 0; i < 1000; ++i)
+    {
+        voice.updateModulators();
+        REQUIRE (voice.processTVA (voice.processTVF (voice.processWG())) == 0.0f);
+    }
+
+    REQUIRE (voice.state() == ToneVoice::State::Active);
+    voice.release();
+
+    int count = 0;
+
+    while (count < 100000)
+    {
+        voice.updateModulators();
+
+        if (voice.processTVA (voice.processTVF (voice.processWG())) != 0.0f)
+            break;
+
+        ++count;
+    }
+
+    const auto mappedMs = Calibration::kToneDelayMinMs
+                          * std::pow (Calibration::kToneDelayMaxMs / Calibration::kToneDelayMinMs,
+                                      (double) 64.0f / 127.0);
+    const auto delaySamples = (int) std::lround (mappedMs * kSampleRate / 1000.0);
+
+    REQUIRE (count == Catch::Approx (delaySamples).epsilon (0.02));
+}
+
+TEST_CASE ("tone delay key interval scales the countdown")
+{
+    const auto firstSoundDelay = [] (float intervalScale)
+    {
+        auto tone = makeDefaultTone();
+        tone.wg.toneDelayMode = 2;   // KEY INTERVAL
+        tone.wg.toneDelayTime = 64.0f;
+
+        ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+        ToneVoice voice;
+        voice.prepare (kSampleRate);
+        voice.startNote (fixture.get(), 0, 60, 1.0f, 1, intervalScale);
+
+        int count = 0;
+
+        while (count < 100000)
+        {
+            voice.updateModulators();
+
+            if (voice.processTVA (voice.processTVF (voice.processWG())) != 0.0f)
+                break;
+
+            ++count;
+        }
+
+        return count;
+    };
+
+    const auto mappedMs = Calibration::kToneDelayMinMs
+                          * std::pow (Calibration::kToneDelayMaxMs / Calibration::kToneDelayMinMs,
+                                      (double) 64.0f / 127.0);
+    const auto base = (int) std::lround (mappedMs * kSampleRate / 1000.0);
+
+    REQUIRE (firstSoundDelay (1.0f) == Catch::Approx (base).epsilon (0.02));
+    REQUIRE (firstSoundDelay (0.5f) == Catch::Approx (base * 0.5).epsilon (0.02));
+    REQUIRE (firstSoundDelay (2.0f) == Catch::Approx (base * 2.0).epsilon (0.02));
+}
+
+TEST_CASE ("tone key and velocity ranges gate note-on")
+{
+    auto tone = makeDefaultTone();
+    tone.wg.keyLow = 48;
+    tone.wg.keyHigh = 72;
+    tone.wg.velLow = 40;
+    tone.wg.velHigh = 100;
+
+    const auto starts = [&tone] (int note, float velocity)
+    {
+        ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+        ToneVoice voice;
+        voice.prepare (kSampleRate);
+        voice.startNote (fixture.get(), 0, note, velocity, 1);
+        return voice.state() == ToneVoice::State::Active;
+    };
+
+    CHECK (starts (60, 64.0f / 127.0f));
+    CHECK (starts (48, 64.0f / 127.0f));
+    CHECK (starts (72, 64.0f / 127.0f));
+    CHECK_FALSE (starts (47, 64.0f / 127.0f));
+    CHECK_FALSE (starts (73, 64.0f / 127.0f));
+    CHECK (starts (60, 40.0f / 127.0f));
+    CHECK (starts (60, 100.0f / 127.0f));
+    CHECK_FALSE (starts (60, 39.0f / 127.0f));
+    CHECK_FALSE (starts (60, 101.0f / 127.0f));
+}
+
+TEST_CASE ("tone switch changes do not affect a sounding voice")
+{
+    auto tone = makeDefaultTone();
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample (100.0, 24000)));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+    renderVoice (voice, 500);
+
+    fixture.runtime->snapshot.tones[0].wg.toneSwitch = false;
+    voice.beginBlock();
+
+    const auto out = renderVoice (voice, 500);
+    CHECK (voice.state() == ToneVoice::State::Active);
+    CHECK (rms (out) > 0.01f);
+}
+
+TEST_CASE ("a one-shot voice fades out at the sample end")
+{
+    auto sample = makeDcSample (0.5f, 200);
+
+    ToneFixture fixture (makeDefaultTone(), makeZoneSet (sample));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    std::vector<float> out;
+
+    while (! voice.finished() && out.size() < 2000)
+    {
+        if (out.size() % 16 == 0)
+            voice.beginBlock();
+
+        voice.updateModulators();
+        out.push_back (voice.processTVA (voice.processTVF (voice.processWG())));
+    }
+
+    const auto fadeSamples = (std::size_t) std::lround (Calibration::kNoteEndFadeMs * kSampleRate / 1000.0);
+    REQUIRE (out.size() >= (std::size_t) 200 + fadeSamples - 2);
+
+    // The tail decays monotonically and ends near zero instead of clicking off.
+    for (std::size_t i = 202; i < out.size(); ++i)
+        REQUIRE (std::abs (out[i]) <= std::abs (out[i - 1]) + 1.0e-6f);
+
+    REQUIRE (std::abs (out.back()) < 0.05f);
+}

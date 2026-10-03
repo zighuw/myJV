@@ -115,15 +115,24 @@ void ToneVoice::reset() noexcept
     player.stop();
     filter.reset();
     peaking.reset();
+    fxm.reset();
     killGain = 1.0f;
     killStep = 0.0f;
     pitchOffset = 0.0f;
     activeGain = 0.0f;
+    delayStarted = true;
+    startOnNoteOff = false;
+    delayRemaining = 0;
+    holdDelaySamples = 0;
+    endFadeRemaining = 0;
+    endFadeTotal = 0;
+    ending = false;
+    lastWgSample = 0.0f;
 }
 
 // RT-safe
 void ToneVoice::startNote (const PatchRuntime* newRuntime, int newToneIndex, int midiNote,
-                           float newVelocity, std::uint64_t rngSeed) noexcept
+                           float newVelocity, std::uint64_t rngSeed, float keyIntervalScale) noexcept
 {
     voiceState = State::Free;
     player.stop();
@@ -172,6 +181,42 @@ void ToneVoice::startNote (const PatchRuntime* newRuntime, int newToneIndex, int
     pitchOffset = 0.0f;
     filterControlCounter = 0;
     activeGain = 1.0f;
+    fxm.reset();
+    lastWgSample = 0.0f;
+    ending = false;
+    endFadeRemaining = 0;
+    endFadeTotal = 0;
+
+    // Tone Delay (architecture 5.11, basic semantics; M4-06 refines). Time 0
+    // means "no delay" (the 1 ms floor only applies once a delay is set).
+    auto baseDelaySamples = 0;
+
+    if (tone.wg.toneDelayTime > 0.0f)
+    {
+        const auto delayMs = Calibration::kToneDelayMinMs
+                             * std::pow (Calibration::kToneDelayMaxMs / Calibration::kToneDelayMinMs,
+                                         (double) std::clamp (tone.wg.toneDelayTime, 0.0f, 127.0f) / 127.0);
+        baseDelaySamples = (int) std::lround (delayMs * sampleRate / 1000.0);
+    }
+
+    holdDelaySamples = baseDelaySamples;
+
+    if (tone.wg.toneDelayMode == 1 && baseDelaySamples > 0)   // HOLD: start on note-off
+    {
+        delayStarted = false;
+        startOnNoteOff = true;
+        delayRemaining = 0;
+    }
+    else
+    {
+        startOnNoteOff = false;
+        delayStarted = true;
+        const auto scale = tone.wg.toneDelayMode == 2
+                               ? std::clamp (keyIntervalScale, Calibration::kKeyIntervalScaleMin,
+                                             Calibration::kKeyIntervalScaleMax)
+                               : 1.0f;
+        delayRemaining = (int) std::lround ((double) baseDelaySamples * (double) scale);
+    }
 
     voiceState = State::Active;
     beginBlock();
@@ -180,6 +225,24 @@ void ToneVoice::startNote (const PatchRuntime* newRuntime, int newToneIndex, int
 // RT-safe
 void ToneVoice::release() noexcept
 {
+    if (voiceState == State::Free || voiceState == State::KillFading)
+        return;
+
+    if (startOnNoteOff && ! delayStarted)   // HOLD: the note-off starts the countdown
+    {
+        delayStarted = true;
+        delayRemaining = holdDelaySamples;
+        return;
+    }
+
+    if (delayRemaining > 0)   // NORMAL / KEY INTERVAL cancel before sounding
+    {
+        player.stop();
+        voiceState = State::Free;
+        activeGain = 0.0f;
+        return;
+    }
+
     if (voiceState == State::Active)
     {
         aEnv.release();
@@ -229,6 +292,12 @@ void ToneVoice::beginBlock() noexcept
     block.pEnvDepthSemis = (tone.pEnv.depth / 63.0f) * (float) Calibration::kPEnvDepthSemitones;
     block.pitchLfoDepth[0] = (tone.wg.pitchLfo1Depth / 127.0f) * (float) Calibration::kLfoPitchSemitones;
     block.pitchLfoDepth[1] = (tone.wg.pitchLfo2Depth / 127.0f) * (float) Calibration::kLfoPitchSemitones;
+
+    block.waveGain = std::pow (10.0f, Calibration::kWaveGainDb[std::clamp (tone.wg.waveGain, 0, 3)] / 20.0f);
+    block.fxmOn = tone.wg.fxmOn;
+    block.fxmColor = tone.wg.fxmColor;
+    block.fxmDepth = tone.wg.fxmDepth;
+    fxm.setParameters (block.fxmOn, block.fxmColor, block.fxmDepth);
 }
 
 // RT-safe
@@ -238,6 +307,31 @@ void ToneVoice::updateModulators() noexcept
 
     if (voiceState == State::Free)
         return;
+
+    if (startOnNoteOff && ! delayStarted)   // HOLD waiting for note-off
+    {
+        activeGain = 0.0f;
+        return;
+    }
+
+    if (delayRemaining > 0)
+    {
+        --delayRemaining;
+        activeGain = 0.0f;
+
+        if (voiceState == State::KillFading)
+        {
+            killGain = std::max (0.0f, killGain - killStep);
+
+            if (killGain <= 0.0f)
+            {
+                player.stop();
+                voiceState = State::Free;
+            }
+        }
+
+        return;
+    }
 
     lfo[0].process();
     lfo[1].process();
@@ -253,11 +347,31 @@ void ToneVoice::updateModulators() noexcept
         return;
     }
 
-    if (player.hasFinished())
+    if (ending)
     {
-        player.stop();
-        voiceState = State::Free;
-        activeGain = 0.0f;
+        if (endFadeRemaining > 0)
+            --endFadeRemaining;
+
+        activeGain = aEnv.level() * block.toneLevel * killGain
+                     * ((float) endFadeRemaining / (float) endFadeTotal);
+
+        if (endFadeRemaining <= 0)
+        {
+            player.stop();
+            voiceState = State::Free;
+            activeGain = 0.0f;
+        }
+
+        return;
+    }
+
+    if (voiceState == State::Active && player.hasFinished())
+    {
+        // Natural one-shot end: hold the last sample and fade it out before
+        // freeing the voice (architecture 5.4, no end click).
+        ending = true;
+        endFadeTotal = std::max (1, (int) std::lround (Calibration::kNoteEndFadeMs * sampleRate / 1000.0));
+        endFadeRemaining = endFadeTotal;
         return;
     }
 
@@ -299,7 +413,20 @@ float ToneVoice::processWG() noexcept
     if (voiceState == State::Free)
         return 0.0f;
 
-    return player.getNextSample();
+    if (startOnNoteOff && ! delayStarted)
+        return 0.0f;
+
+    if (delayRemaining > 0)
+        return 0.0f;
+
+    if (player.hasFinished())
+        return ending ? lastWgSample : 0.0f;
+
+    player.setPhaseModulation (fxm.process (lastWgSample));
+
+    const auto sample = player.getNextSample() * block.waveGain;
+    lastWgSample = sample;
+    return sample;
 }
 
 // RT-safe
