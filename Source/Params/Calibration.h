@@ -77,4 +77,11 @@ inline constexpr double kMatrixLfoDepthRange = 1.0;
 inline constexpr double kMatrixEnvLevelRange = 1.0;
 inline constexpr double kModSmoothingMs = 10.0;
 inline constexpr double kLfoAmpDepth = 1.0;
+
+// Block-rate parameter smoothing (architecture 4.3; provisional, tuned in M2-11).
+inline constexpr double kLevelSmoothingMs = 10.0;
+inline constexpr double kPanSmoothingMs = 10.0;
+inline constexpr double kOutputLevelSmoothingMs = 10.0;
+inline constexpr double kCutoffSmoothingMs = 5.0;
+inline constexpr double kResonanceSmoothingMs = 5.0;
 }

@@ -105,6 +105,11 @@ void ToneVoice::prepare (double engineSampleRate) noexcept
     lfo[0].prepare (sampleRate);
     lfo[1].prepare (sampleRate);
     matrix.prepare (sampleRate);
+    levelSmoother.prepare (sampleRate, Calibration::kLevelSmoothingMs);
+    outputSmoother.prepare (sampleRate, Calibration::kOutputLevelSmoothingMs);
+    panSmoother.prepare (sampleRate, Calibration::kPanSmoothingMs);
+    cutoffSmoother.prepare (sampleRate, Calibration::kCutoffSmoothingMs);
+    resonanceSmoother.prepare (sampleRate, Calibration::kResonanceSmoothingMs);
     reset();
 }
 
@@ -118,6 +123,11 @@ void ToneVoice::reset() noexcept
     peaking.reset();
     fxm.reset();
     matrix.reset();
+    levelSmoother.reset();
+    outputSmoother.reset();
+    panSmoother.reset();
+    cutoffSmoother.reset();
+    resonanceSmoother.reset();
     killGain = 1.0f;
     killStep = 0.0f;
     pitchOffset = 0.0f;
@@ -222,6 +232,7 @@ void ToneVoice::startNote (const PatchRuntime* newRuntime, int newToneIndex, int
 
     voiceState = State::Active;
     beginBlock();
+    snapSmoothers();
 }
 
 // RT-safe
@@ -320,6 +331,28 @@ void ToneVoice::beginBlock() noexcept
                                / 127.0f * (float) Calibration::kLfoAmpDepth;
         lfo[i].setRateMultiplier (std::exp2 (block.mod.lfoRateOctaves[i]));
     }
+
+    // Block-rate component targets for the parameter smoothers (architecture
+    // 4.3). LFO/ENV modulation stays outside the smoothers.
+    levelSmoother.setTarget (block.toneLevel
+                             * std::pow (10.0f, block.mod.levelDb / 20.0f)
+                             * block.mod.envLevelScale[2]);
+    outputSmoother.setTarget (block.outputLevel);
+    panSmoother.setTarget (std::clamp (block.panBase + block.panKey + randomPan + block.mod.pan,
+                                       -1.0f, 1.0f));
+    cutoffSmoother.setTarget (block.baseCutoffHz
+                              * std::exp2 (block.keyfollowOctaves + block.mod.cutoffOctaves));
+    resonanceSmoother.setTarget (block.baseQ * std::exp2 (block.mod.resonanceOctaves));
+}
+
+// RT-safe
+void ToneVoice::snapSmoothers() noexcept
+{
+    levelSmoother.snapToTarget();
+    outputSmoother.snapToTarget();
+    panSmoother.snapToTarget();
+    cutoffSmoother.snapToTarget();
+    resonanceSmoother.snapToTarget();
 }
 
 // RT-safe
@@ -410,6 +443,12 @@ void ToneVoice::updateModulators() noexcept
         }
     }
 
+    levelSmoother.process();
+    outputSmoother.process();
+    panSmoother.process();
+    cutoffSmoother.process();
+    resonanceSmoother.process();
+
     pitchOffset = block.pitchKeyfollowScale
                   + randomPitchSemitones
                   + block.mod.pitchSemitones
@@ -427,9 +466,7 @@ void ToneVoice::updateModulators() noexcept
 
     --filterControlCounter;
 
-    auto gain = aEnv.level() * block.toneLevel * killGain;
-    gain *= std::pow (10.0f, block.mod.levelDb / 20.0f);
-    gain *= block.mod.envLevelScale[2];
+    auto gain = aEnv.level() * levelSmoother.current() * killGain;
 
     for (int i = 0; i < 2; ++i)
         gain *= std::clamp (1.0f + block.tvaLfoDepth[i] * lfo[i].value() * block.mod.lfoAmpDepthScale[i],
@@ -496,13 +533,14 @@ void ToneVoice::addToBus (float sample, BusBuffers& buses) noexcept
     if (voiceState == State::Free)
         return;
 
-    const auto pan = std::clamp (block.panBase + block.panKey + randomPan + block.mod.pan
+    const auto pan = std::clamp (panSmoother.current()
                                      + block.panLfoDepth[0] * lfo[0].value()
                                      + block.panLfoDepth[1] * lfo[1].value(),
                                  -1.0f, 1.0f);
     const auto theta = (pan + 1.0f) * 0.25f * kPi;
-    const auto left = sample * std::cos (theta) * block.outputLevel;
-    const auto right = sample * std::sin (theta) * block.outputLevel;
+    const auto level = outputSmoother.current();
+    const auto left = sample * std::cos (theta) * level;
+    const auto right = sample * std::sin (theta) * level;
 
     const auto bus = block.outputAssign >= 0 && block.outputAssign < kNumOutputBuses
                          ? block.outputAssign : 0;
@@ -516,19 +554,18 @@ void ToneVoice::addToBus (float sample, BusBuffers& buses) noexcept
 
 void ToneVoice::updateFilterCoefficients() noexcept
 {
-    const auto octaves = block.keyfollowOctaves
-                         + block.mod.cutoffOctaves
-                         + block.fEnvDepth * fEnv.level() * block.mod.envLevelScale[1]
+    // Keyfollow/matrix are already smoothed into the base target; the F-ENV
+    // and LFO modulation stays per-sample (architecture 4.3).
+    const auto octaves = block.fEnvDepth * fEnv.level() * block.mod.envLevelScale[1]
                          + block.lfoCutoffDepth[0] * lfo[0].value()
                          + block.lfoCutoffDepth[1] * lfo[1].value();
 
-    activeCutoffHz = std::clamp (block.baseCutoffHz * std::exp2 (octaves),
+    activeCutoffHz = std::clamp (cutoffSmoother.current() * std::exp2 (octaves),
                                  (float) Calibration::kCutoffMinHz,
                                  (float) Calibration::kCutoffMaxHz);
 
     if (block.filterType == 4)
         peaking.setPeaking (activeCutoffHz, 1.0f, block.pkgGainDb);
     else if (block.filterType >= 1 && block.filterType <= 3)
-        filter.setCoefficients (activeCutoffHz,
-                                block.baseQ * std::exp2 (block.mod.resonanceOctaves));
+        filter.setCoefficients (activeCutoffHz, resonanceSmoother.current());
 }

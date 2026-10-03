@@ -20,6 +20,7 @@ set(MYJV_CORE_SOURCES
     Source/DSP/FXM.cpp
     Source/DSP/LFO.cpp
     Source/DSP/SamplePlayer.cpp
+    Source/DSP/Smoother.cpp
     Source/DSP/SVF.cpp
     Source/Engine/AssetReclaimer.cpp
     Source/Engine/AuditionVoice.cpp
@@ -147,6 +148,7 @@ if(BUILD_TESTING)
         Tests/param_tests.cpp
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp
+        Tests/smoothing_tests.cpp
         Tests/test_main.cpp
         Tests/tone_voice_tests.cpp
         Tests/waveform_tests.cpp
