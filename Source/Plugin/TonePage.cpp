@@ -1,5 +1,13 @@
 #include "Plugin/TonePage.h"
 
+namespace TonePageUi
+{
+juce::StringArray comboChoices (const juce::AudioProcessorParameter& parameter)
+{
+    return parameter.getAllValueStrings();
+}
+}
+
 namespace
 {
 juce::String tone1ParameterId (const TonePage::Entry& entry)
@@ -46,6 +54,12 @@ public:
 
             case TonePage::ControlKind::Combo:
                 combo = std::make_unique<juce::ComboBox>();
+
+                // The attachment maps selections to values but never adds items:
+                // without this the box stays empty and the parameter is unusable.
+                if (auto* parameter = state.getParameter (id))
+                    combo->addItemList (TonePageUi::comboChoices (*parameter), 1);
+
                 addAndMakeVisible (*combo);
                 comboAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
                     state, id, *combo);

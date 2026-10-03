@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Params/ParameterIDs.h"
+#include "Plugin/TonePage.h"
 #include "Plugin/TonePageLayout.h"
 
 #include <iterator>
@@ -140,6 +141,27 @@ TEST_CASE ("tone page control kinds match the registered parameter types")
                 CHECK (dynamic_cast<AudioParameterBool*> (parameter) != nullptr);
                 break;
         }
+    }
+}
+
+TEST_CASE ("tone page combo controls expose the registered choices")
+{
+    Fixture fixture;
+
+    for (const auto& entry : TonePage::kTone1Layout)
+    {
+        if (entry.kind != TonePage::ControlKind::Combo)
+            continue;
+
+        auto* parameter = fixture.apvts.getParameter ("tone1." + String (entry.suffix));
+        INFO (entry.suffix);
+        REQUIRE (parameter != nullptr);
+
+        const auto items = TonePageUi::comboChoices (*parameter);
+        CHECK (items.size() >= 2);
+
+        if (auto* choice = dynamic_cast<AudioParameterChoice*> (parameter))
+            CHECK (items == choice->choices);
     }
 }
 
