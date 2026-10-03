@@ -36,6 +36,8 @@ set(MYJV_CORE_SOURCES
     Source/Plugin/MyJVEditor.cpp
     Source/Plugin/MyJVLog.cpp
     Source/Plugin/MyJVProcessor.cpp
+    Source/Plugin/SamplerPanel.cpp
+    Source/Plugin/TonePage.cpp
     Source/Plugin/WaveformView.cpp
     Source/Plugin/ZoneMapView.cpp
     Source/Plugin/ZonePropertiesPanel.cpp)
@@ -76,7 +78,10 @@ set(MYJV_SOURCE_HEADERS
     Source/Plugin/MyJVEditor.h
     Source/Plugin/MyJVLog.h
     Source/Plugin/MyJVProcessor.h
+    Source/Plugin/SamplerPanel.h
     Source/Plugin/SamplerUiHelpers.h
+    Source/Plugin/TonePage.h
+    Source/Plugin/TonePageLayout.h
     Source/Plugin/LoopEditGeometry.h
     Source/Plugin/WaveformView.h
     Source/Plugin/ZoneDraft.h
@@ -150,6 +155,7 @@ if(BUILD_TESTING)
         Tests/sampler_ui_tests.cpp
         Tests/smoothing_tests.cpp
         Tests/test_main.cpp
+        Tests/tone_page_tests.cpp
         Tests/tone_voice_tests.cpp
         Tests/waveform_tests.cpp
         Tests/zone_grid_tests.cpp
