@@ -21,6 +21,10 @@ public:
     // RT-safe: M2 audio-thread Note-On call site.
     void setPitchOffsetSemitones (float semitones) noexcept;
 
+    // RT-safe. Adds a read-position offset (in samples) to the next
+    // getNextSample() call only; used by FXM. start() resets it.
+    void setPhaseModulation (float samples) noexcept;
+
     // RT-safe
     float getNextSample() noexcept;
 
@@ -39,6 +43,7 @@ private:
     double position = 0.0;
     double baseRatio = 1.0;
     float pitchScale = 1.0f;
+    float phaseModulation = 0.0f;
     int loopStart = 0;
     int loopEnd = 0;
     bool loopEnabled = false;

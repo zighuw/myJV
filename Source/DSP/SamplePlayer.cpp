@@ -69,6 +69,7 @@ void SamplePlayer::start (const Sample& sample, const Zone& zone, int note, doub
     fadeInStep = 1.0f / (float) fadeSamples;
 
     position = reverse ? (double) (numSamples - 1) : 0.0;
+    phaseModulation = 0.0f;
     active = true;
     finished = false;
 }
@@ -82,6 +83,11 @@ void SamplePlayer::stop() noexcept
 void SamplePlayer::setPitchOffsetSemitones (float semitones) noexcept
 {
     pitchScale = std::exp2 (semitones / 12.0f);
+}
+
+void SamplePlayer::setPhaseModulation (float samples) noexcept
+{
+    phaseModulation = samples;
 }
 
 bool SamplePlayer::isActive() const noexcept
@@ -173,7 +179,7 @@ float SamplePlayer::getNextSample() noexcept
         }
     }
 
-    auto value = sampleForPosition (position);
+    auto value = sampleForPosition (position + (double) phaseModulation);
 
     value *= fadeInGain;
 
