@@ -195,4 +195,43 @@ if(BUILD_TESTING)
             juce::juce_recommended_warning_flags)
 
     add_test(NAME myJV_tests COMMAND myJV_tests)
+
+    add_executable(myJV_render_tests
+        Tests/render_tests.cpp
+        Tests/RenderRegression.cpp
+        ${MYJV_CORE_SOURCES}
+        ${MYJV_SOURCE_HEADERS})
+
+    target_include_directories(myJV_render_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
+    target_compile_features(myJV_render_tests PRIVATE cxx_std_20)
+
+    if(MSVC)
+        target_compile_options(myJV_render_tests PRIVATE /utf-8)
+    endif()
+
+    target_compile_definitions(myJV_render_tests
+        PRIVATE
+            MYJV_REPO_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0
+            JUCE_MODAL_LOOPS_PERMITTED=1
+            JucePlugin_Name="myJV"
+            JucePlugin_VersionString="${PROJECT_VERSION}"
+            JucePlugin_WantsMidiInput=1
+            JucePlugin_ProducesMidiOutput=0
+            JucePlugin_IsMidiEffect=0)
+
+    target_link_libraries(myJV_render_tests
+        PRIVATE
+            Catch2::Catch2
+            juce::juce_audio_formats
+            juce::juce_audio_processors
+            juce::juce_cryptography
+            juce::juce_dsp
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    add_test(NAME render_regression COMMAND myJV_render_tests)
 endif()
