@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "generator": "myJV 0.1.0",
+  "sampleRate": 48000.0,
+  "blockSize": 512,
+  "cases": [
+    {
+      "name": "sustained",
+      "file": "sustained.wav",
+      "frames": 96000,
+      "channels": 2,
+      "renderSha256": "06ba304d03b8a8522b9d37399e9c8b983acf24d819082070ea86b2b8cc0043aa",
+      "fileSha256": "c7bfaff8818be51ef6f6faf9a4e30dcc8f02b1de8bc3f4bc11738345348ac880",
+      "rmsDb": -19.291523,
+      "peakDb": -15.03098,
+      "bandsDb": [
+        -52.263423,
+        -19.214263,
+        -49.388141,
+        -66.528075,
+        -75.862837,
+        -86.844607,
+        -99.794805,
+        -112.516995,
+        -119.226442,
+        -122.755019
+      ],
+      "tolerance": {
+        "rmsDb": 0.1,
+        "bandDb": 0.5
+      }
+    },
+    {
+      "name": "modulated",
+      "file": "modulated.wav",
+      "frames": 120000,
+      "channels": 2,
+      "renderSha256": "922c7c7990f9c28ba625578e9fc1da5d8959b291eb21c12a89f24a6e48d5b2ed",
+      "fileSha256": "54516e0d87372f5a2f38b0caf6b7d6cd8083699a5ec9153ec1df983d395967a0",
+      "rmsDb": -19.012054,
+      "peakDb": -13.691204,
+      "bandsDb": [
+        -57.285417,
+        -23.896439,
+        -20.643979,
+        -64.146389,
+        -73.167925,
+        -83.18901,
+        -94.215037,
+        -103.949982,
+        -108.464599,
+        -113.340148
+      ],
+      "tolerance": {
+        "rmsDb": 0.1,
+        "bandDb": 0.5
+      }
+    },
+    {
+      "name": "wg-fxm-delay",
+      "file": "wg-fxm-delay.wav",
+      "frames": 72000,
+      "channels": 2,
+      "renderSha256": "b585b621111e8a18440da1f8b3076cc07225d84cbd9eb36aca9faa44cf6507e3",
+      "fileSha256": "ac8ad0123ef5a7a4088871648ee294ef34b92a27747e975303cc49c965c2c49a",
+      "rmsDb": -10.861952,
+      "peakDb": -3.030955,
+      "bandsDb": [
+        -40.364548,
+        -10.943525,
+        -30.080021,
+        -46.189613,
+        -55.958686,
+        -62.35643,
+        -70.092964,
+        -78.518112,
+        -86.356713,
+        -92.777888
+      ],
+      "tolerance": {
+        "rmsDb": 0.1,
+        "bandDb": 0.5
+      }
+    }
+  ]
+}
