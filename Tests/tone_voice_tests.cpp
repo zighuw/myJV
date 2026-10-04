@@ -797,6 +797,86 @@ TEST_CASE ("tone delay freezes the modulators and the output until it elapses")
     REQUIRE (voice.currentGain() < 0.05f);
 }
 
+TEST_CASE ("pitch envelope releases to its T4 level on note-off")
+{
+    const auto mappedMs = [] (float time)
+    {
+        return Calibration::kEnvTimeMinMs
+               * std::pow (Calibration::kEnvTimeMaxMs / Calibration::kEnvTimeMinMs, (double) time / 127.0);
+    };
+
+    auto tone = makeDefaultTone();
+    tone.pEnv.depth = 63;
+    tone.pEnv.time[0] = 0.0f;     // 1 ms attack to L1
+    tone.pEnv.time[1] = 127.0f;   // hold at L2
+    tone.pEnv.time[2] = 127.0f;   // sustain ramp stays at L3
+    tone.pEnv.time[3] = 64.0f;    // release T4
+    tone.pEnv.level[0] = 127.0f;
+    tone.pEnv.level[1] = 127.0f;
+    tone.pEnv.level[2] = 127.0f;
+    tone.pEnv.level[3] = 0.0f;
+    tone.tva.aEnv.time[3] = 96.0f;   // keep the voice alive through the pitch release
+    tone.tva.aEnv.level[3] = 0.0f;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample(), LoopMode::Sustain));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    (void) renderVoice (voice, 2000);
+    REQUIRE (voice.currentPitchOffsetSemitones() == Catch::Approx (12.0).margin (0.1));
+
+    voice.release();
+
+    const auto releaseSamples = (int) std::lround (mappedMs (64.0f) * kSampleRate / 1000.0);
+    (void) renderVoice (voice, releaseSamples + 200);
+
+    REQUIRE (voice.currentPitchOffsetSemitones() == Catch::Approx (0.0).margin (0.05));
+}
+
+TEST_CASE ("filter envelope releases to its T4 level on note-off")
+{
+    const auto mappedMs = [] (float time)
+    {
+        return Calibration::kEnvTimeMinMs
+               * std::pow (Calibration::kEnvTimeMaxMs / Calibration::kEnvTimeMinMs, (double) time / 127.0);
+    };
+
+    constexpr float cutoffParam = 32.0f;
+    const auto baseCutoffHz = Calibration::kCutoffMinHz
+                              * std::pow (Calibration::kCutoffMaxHz / Calibration::kCutoffMinHz,
+                                          (double) cutoffParam / 127.0);
+    const auto openCutoffHz = baseCutoffHz * std::pow (2.0, Calibration::kFEnvDepthOctaves);
+
+    auto tone = makeDefaultTone (cutoffParam);
+    tone.tvf.fEnv.depth = 63;
+    tone.tvf.fEnv.time[0] = 0.0f;
+    tone.tvf.fEnv.time[1] = 127.0f;
+    tone.tvf.fEnv.time[2] = 127.0f;
+    tone.tvf.fEnv.time[3] = 64.0f;
+    tone.tvf.fEnv.level[0] = 127.0f;
+    tone.tvf.fEnv.level[1] = 127.0f;
+    tone.tvf.fEnv.level[2] = 127.0f;
+    tone.tvf.fEnv.level[3] = 0.0f;
+    tone.tva.aEnv.time[3] = 96.0f;   // keep the voice alive through the filter release
+    tone.tva.aEnv.level[3] = 0.0f;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample(), LoopMode::Sustain));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    (void) renderVoice (voice, 2000);
+    REQUIRE (voice.currentCutoffHz() == Catch::Approx ((float) openCutoffHz).epsilon (0.05));
+
+    voice.release();
+
+    const auto releaseSamples = (int) std::lround (mappedMs (64.0f) * kSampleRate / 1000.0);
+    (void) renderVoice (voice, releaseSamples + 200);
+
+    REQUIRE (voice.currentCutoffHz() == Catch::Approx ((float) baseCutoffHz).epsilon (0.05));
+}
+
 TEST_CASE ("note-off during the tone delay cancels a normal-mode voice")
 {
     auto tone = makeDefaultTone();

@@ -259,6 +259,8 @@ void ToneVoice::release() noexcept
     if (voiceState == State::Active)
     {
         aEnv.release();
+        pEnv.release();   // G1 fix (M2-F01): P/F envelopes follow T4 -> L4 on note-off
+        fEnv.release();
         voiceState = State::Releasing;
     }
 }
