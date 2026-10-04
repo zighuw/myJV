@@ -6,8 +6,10 @@ namespace Calibration
 inline constexpr double kSampleFadeInMs = 1.5;
 
 // Envelope time mapping (architecture 4.4): ms = min * pow(max/min, t/127).
+// kEnvTimeMaxMs lowered from 20000 to 10000 in the M2-11 first tuning round
+// (human listening verdict; the architecture table still lists 20000).
 inline constexpr double kEnvTimeMinMs = 1.0;
-inline constexpr double kEnvTimeMaxMs = 20000.0;
+inline constexpr double kEnvTimeMaxMs = 10000.0;
 
 // Exponential approach coefficient used by every envelope segment: the level
 // reaches ~99.3% of its target at the segment boundary, which then snaps
@@ -40,9 +42,11 @@ inline constexpr double kLfoSyncBeats[18]
 
 // TVF (architecture 5.5 / appendix C, tuned by ear in M2-11).
 // cutoffHz = min * pow(max/min, c/127); Q = 0.5 * pow(kResonanceMaxQ/0.5, r/127).
+// kResonanceMaxQ raised from 20 to 22 in the M2-11 first tuning round
+// (human listening verdict).
 inline constexpr double kCutoffMinHz = 20.0;
 inline constexpr double kCutoffMaxHz = 20000.0;
-inline constexpr double kResonanceMaxQ = 20.0;
+inline constexpr double kResonanceMaxQ = 22.0;
 inline constexpr double kPkgGainDb = 12.0;
 inline constexpr int kFilterControlRate = 16;          // coefficient refresh, in samples (M2-05)
 inline constexpr float kFilterStateLimit = 8.0f;       // SVF self-oscillation state guard

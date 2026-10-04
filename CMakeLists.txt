@@ -199,6 +199,7 @@ if(BUILD_TESTING)
     add_executable(myJV_render_tests
         Tests/render_tests.cpp
         Tests/RenderRegression.cpp
+        Tests/tuning_tests.cpp
         ${MYJV_CORE_SOURCES}
         ${MYJV_SOURCE_HEADERS})
 

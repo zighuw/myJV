@@ -353,7 +353,8 @@ bool writeManifest (const juce::File& file, const Manifest& manifest, juce::Stri
 
     const auto text = juce::JSON::toString (juce::var (root.get()), false, 6);
 
-    if (! file.replaceWithText (text))
+    // LF line endings keep the committed manifest free of CRLF noise (M2-10 L1).
+    if (! file.replaceWithText (text, false, false, "\n"))
     {
         error = "cannot write the manifest: " + file.getFullPathName();
         return false;
