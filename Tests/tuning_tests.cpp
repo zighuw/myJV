@@ -586,25 +586,25 @@ String measurePanDepth (double& minBalance, double& maxBalance)
 
 String measurePitchDepth (double& measuredSemitones)
 {
-    auto tone = baseTone();
-    tone.pEnv.depth = 63;
-    tone.pEnv.time[0] = 40.0f;   // ~23 ms up
-    tone.pEnv.time[1] = 96.0f;   // ~1.79 s back down
-    tone.pEnv.level[0] = 127.0f;
-    tone.pEnv.level[1] = 0.0f;   // returns to base while the note is held
-    tone.pEnv.level[2] = 0.0f;
-    tone.pEnv.level[3] = 0.0f;
-    const auto rendered = renderNote (tone, (int) (3.5 * kSampleRate));
+    auto base = baseTone();
 
-    // Peak near 0.03 s vs the held tail after the pitch contour returns.
-    const auto earlyHz = zeroCrossingHz (rendered, (int) (0.03 * kSampleRate), (int) (0.02 * kSampleRate));
-    const auto lateHz = zeroCrossingHz (rendered, (int) (2.2 * kSampleRate), (int) (0.05 * kSampleRate));
-    measuredSemitones = 12.0 * std::log2 (earlyHz / jmax (lateHz, 1.0));
+    auto openTone = base;
+    openTone.pEnv.depth = 63;
+
+    for (int i = 0; i < 4; ++i)
+        openTone.pEnv.level[i] = 127.0f;   // constant full depth
+
+    const auto frames = (int) (1.5 * kSampleRate);
+    const auto open = renderNote (openTone, frames);
+    const auto flat = renderNote (base, frames);
+    const auto openHz = zeroCrossingHz (open, (int) (0.5 * kSampleRate), (int) (0.1 * kSampleRate));
+    const auto baseHz = zeroCrossingHz (flat, (int) (0.5 * kSampleRate), (int) (0.1 * kSampleRate));
+    measuredSemitones = 12.0 * std::log2 (openHz / jmax (baseHz, 1.0));
 
     String report;
-    report << "P-ENV depth=63 pitch: early=" << String (earlyHz, 1) << " Hz, tail=" << String (lateHz, 1) << " Hz"
-           << " => " << String (measuredSemitones, 2) << " semitones (kPEnvDepthSemitones="
-           << Calibration::kPEnvDepthSemitones << ")\n";
+    report << "P-ENV depth=63 (constant full vs off): " << String (baseHz, 1) << " -> "
+           << String (openHz, 1) << " Hz => " << String (measuredSemitones, 2)
+           << " semitones (kPEnvDepthSemitones=" << Calibration::kPEnvDepthSemitones << ")\n";
     return report;
 }
 
