@@ -816,7 +816,6 @@ TEST_CASE ("pitch envelope releases to its T4 level on note-off")
     tone.pEnv.level[2] = 127.0f;
     tone.pEnv.level[3] = 0.0f;
     tone.tva.aEnv.time[3] = 96.0f;   // keep the voice alive through the pitch release
-    tone.tva.aEnv.level[3] = 0.0f;
 
     ToneFixture fixture (tone, makeZoneSet (makeSineSample(), LoopMode::Sustain));
     ToneVoice voice;
@@ -859,7 +858,6 @@ TEST_CASE ("filter envelope releases to its T4 level on note-off")
     tone.tvf.fEnv.level[2] = 127.0f;
     tone.tvf.fEnv.level[3] = 0.0f;
     tone.tva.aEnv.time[3] = 96.0f;   // keep the voice alive through the filter release
-    tone.tva.aEnv.level[3] = 0.0f;
 
     ToneFixture fixture (tone, makeZoneSet (makeSineSample(), LoopMode::Sustain));
     ToneVoice voice;
