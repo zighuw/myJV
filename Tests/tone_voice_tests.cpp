@@ -662,6 +662,37 @@ TEST_CASE ("kill fades out quickly and frees the voice")
     CHECK (voice.currentGain() == 0.0f);
 }
 
+TEST_CASE ("kill during the hold wait frees the voice")
+{
+    auto tone = makeDefaultTone();
+    tone.wg.toneDelayMode = 1;   // HOLD: waits for note-off before the countdown
+    tone.wg.toneDelayTime = 64.0f;
+
+    ToneFixture fixture (tone, makeZoneSet (makeSineSample()));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+    renderVoice (voice, 1000);
+
+    REQUIRE (voice.state() == ToneVoice::State::Active);
+
+    voice.kill();
+    REQUIRE (voice.state() == ToneVoice::State::KillFading);
+
+    int count = 0;
+
+    while (! voice.finished() && count < 100000)
+    {
+        voice.updateModulators();
+        (void) voice.processTVA (voice.processTVF (voice.processWG()));
+        ++count;
+    }
+
+    CHECK (voice.state() == ToneVoice::State::Free);
+    CHECK (count <= (int) std::ceil (Calibration::kKillFadeMs * kSampleRate / 1000.0) + 2);
+    CHECK (voice.currentGain() == 0.0f);
+}
+
 TEST_CASE ("no zone or a tone switch off stays silent and free")
 {
     ToneVoice voice;
@@ -1041,6 +1072,52 @@ TEST_CASE ("a one-shot voice fades out at the sample end")
         REQUIRE (std::abs (out[i]) <= std::abs (out[i - 1]) + 1.0e-6f);
 
     REQUIRE (std::abs (out.back()) < 0.05f);
+}
+
+TEST_CASE ("a releasing one-shot voice still fades at the sample end")
+{
+    auto sample = makeDcSample (0.5f, 200);
+    auto tone = makeDefaultTone();
+    tone.tva.aEnv.time[3] = 96.0f;   // long release: the envelope is still open at the sample end
+
+    ToneFixture fixture (tone, makeZoneSet (sample));
+    ToneVoice voice;
+    voice.prepare (kSampleRate);
+    voice.startNote (fixture.get(), 0, 60, 1.0f, 1);
+
+    std::vector<float> out;
+
+    for (int i = 0; i < 100; ++i)
+    {
+        if (i % 16 == 0)
+            voice.beginBlock();
+
+        voice.updateModulators();
+        out.push_back (voice.processTVA (voice.processTVF (voice.processWG())));
+    }
+
+    voice.release();
+    REQUIRE (voice.state() == ToneVoice::State::Releasing);
+
+    while (! voice.finished() && out.size() < 4000)
+    {
+        if (out.size() % 16 == 0)
+            voice.beginBlock();
+
+        voice.updateModulators();
+        out.push_back (voice.processTVA (voice.processTVF (voice.processWG())));
+    }
+
+    const auto fadeSamples = (std::size_t) std::lround (Calibration::kNoteEndFadeMs * kSampleRate / 1000.0);
+    REQUIRE (out.size() >= (std::size_t) 200 + fadeSamples - 2);
+    REQUIRE (voice.finished());
+
+    // No click at the sample end: the output must fade out instead of jumping
+    // to zero while the release envelope is still open.
+    for (std::size_t i = 102; i < out.size(); ++i)
+        CHECK (std::abs (out[i] - out[i - 1]) < 0.05f);
+
+    CHECK (std::abs (out.back()) < 0.05f);
 }
 
 TEST_CASE ("the control matrix drives pitch, cutoff and pan")
