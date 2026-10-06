@@ -368,6 +368,20 @@ void ToneVoice::updateModulators() noexcept
     if (startOnNoteOff && ! delayStarted)   // HOLD waiting for note-off
     {
         activeGain = 0.0f;
+
+        // M2-F02 (I1): a killed voice must still fade out and free while it
+        // waits for the note-off, otherwise the slot leaks (M3-01 stealing).
+        if (voiceState == State::KillFading)
+        {
+            killGain = std::max (0.0f, killGain - killStep);
+
+            if (killGain <= 0.0f)
+            {
+                player.stop();
+                voiceState = State::Free;
+            }
+        }
+
         return;
     }
 
@@ -422,10 +436,11 @@ void ToneVoice::updateModulators() noexcept
         return;
     }
 
-    if (voiceState == State::Active && player.hasFinished())
+    if ((voiceState == State::Active || voiceState == State::Releasing) && player.hasFinished())
     {
         // Natural one-shot end: hold the last sample and fade it out before
-        // freeing the voice (architecture 5.4, no end click).
+        // freeing the voice (architecture 5.4, no end click). M2-F02 (I2): a
+        // releasing voice must run the same fade instead of jumping to zero.
         ending = true;
         endFadeTotal = std::max (1, (int) std::lround (Calibration::kNoteEndFadeMs * sampleRate / 1000.0));
         endFadeRemaining = endFadeTotal;
