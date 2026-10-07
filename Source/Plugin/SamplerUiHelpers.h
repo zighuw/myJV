@@ -86,6 +86,27 @@ inline MergeOutcome mergeImportedEntry (std::vector<LibraryEntry>& entries,
     return outcome;
 }
 
+// Applies a decoded import to the library on the message thread. The decoded
+// sample is ALWAYS cached, even when the index already holds the hash: the
+// engine's runtime rebuild resolves zones through SampleLibrary::findSample, so
+// a duplicate index entry must still get its sample or the tone stays silent
+// (M3-01 C1). The index is rewritten only when the entry set actually changes.
+inline MergeOutcome publishImportedSample (SampleLibrary& library,
+                                           const LibraryEntry& entry,
+                                           std::shared_ptr<const Sample> sample,
+                                           bool replaceExisting)
+{
+    library.addSample (entry.fileHash, std::move (sample));
+
+    auto entries = library.getEntries();
+    const auto outcome = mergeImportedEntry (entries, entry, replaceExisting);
+
+    if (! outcome.skippedDuplicate)
+        library.setEntries (std::move (entries));
+
+    return outcome;
+}
+
 // --- transient status line (code-review I-1) --------------------------------
 
 // Import/scan feedback must stay readable: the 10 Hz status timer and the

@@ -152,6 +152,7 @@ if(BUILD_TESTING)
         Tests/model_tests.cpp
         Tests/modulation_tests.cpp
         Tests/param_tests.cpp
+        Tests/processor_tests.cpp
         Tests/sample_player_tests.cpp
         Tests/sampler_ui_tests.cpp
         Tests/smoothing_tests.cpp

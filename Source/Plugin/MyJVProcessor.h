@@ -120,7 +120,11 @@ private:
     // imported sample audible from host MIDI (closes M2-R4 C1).
     void publishRuntime();
 
-    static std::uint64_t libraryFingerprint (const std::vector<LibraryEntry>& entries);
+    // Message thread. Signature of the library state the runtime depends on:
+    // the index entries AND which of them have a decoded sample cached (the
+    // auto-mapped zones resolve through findSample, so decoding a sample must
+    // also trigger a rebuild even when the index itself is unchanged).
+    static std::uint64_t libraryFingerprint (const SampleLibrary& library);
 
     juce::AudioProcessorValueTreeState apvts;
     ParamSnapshotCache paramSnapshotCache;

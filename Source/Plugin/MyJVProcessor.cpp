@@ -38,7 +38,7 @@ void MyJVProcessor::timerCallback()
     if (! juce::MessageManager::existsAndIsCurrentThread() || library.isScanning())
         return;
 
-    const auto fingerprint = libraryFingerprint (library.getEntries());
+    const auto fingerprint = libraryFingerprint (library);
 
     if (! initialRuntimePublished || fingerprint != lastLibraryFingerprint)
         publishRuntime();
@@ -73,13 +73,19 @@ void MyJVProcessor::publishRuntime()
     reclaimer.publish (std::move (runtime));
 
     initialRuntimePublished = true;
-    lastLibraryFingerprint = libraryFingerprint (library.getEntries());
+    lastLibraryFingerprint = libraryFingerprint (library);
 }
 
-std::uint64_t MyJVProcessor::libraryFingerprint (const std::vector<LibraryEntry>& entries)
+std::uint64_t MyJVProcessor::libraryFingerprint (const SampleLibrary& library)
 {
-    // FNV-1a over the index signature (count + path/hash/root/length/flags):
-    // cheap enough to run at 10 Hz and exact enough to spot an import/scan.
+    // FNV-1a over the runtime-relevant library state (count + path/hash/root/
+    // length/flags + decoded-sample presence): cheap enough to run at 10 Hz and
+    // exact enough to spot an import, a scan or a lazy decode. The decoded-sample
+    // bit is essential: the auto-mapped zones resolve through findSample, so a
+    // sample appearing (or disappearing) must rebuild the runtime even when the
+    // index entries themselves are unchanged (M3-01 C1).
+    const auto& entries = library.getEntries();
+
     std::uint64_t hash = 1469598103934665603ull;
     const auto mix = [&hash] (std::uint64_t value)
     {
@@ -94,6 +100,7 @@ std::uint64_t MyJVProcessor::libraryFingerprint (const std::vector<LibraryEntry>
         mix (entry.external ? 1u : 0u);
         mix ((std::uint64_t) entry.rootKey);
         mix ((std::uint64_t) entry.lengthSamples);
+        mix (library.findSample (entry.fileHash) != nullptr ? 1u : 0u);
 
         for (const auto character : entry.path)
             mix ((std::uint64_t) (unsigned char) character);
