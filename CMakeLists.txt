@@ -27,6 +27,7 @@ set(MYJV_CORE_SOURCES
     Source/Engine/ModulationMatrix.cpp
     Source/Engine/SynthEngine.cpp
     Source/Engine/ToneVoice.cpp
+    Source/Engine/VoiceManager.cpp
     Source/IO/LibraryIndex.cpp
     Source/IO/SampleImporter.cpp
     Source/Model/SampleLibrary.cpp
@@ -157,6 +158,7 @@ if(BUILD_TESTING)
         Tests/test_main.cpp
         Tests/tone_page_tests.cpp
         Tests/tone_voice_tests.cpp
+        Tests/voice_manager_tests.cpp
         Tests/waveform_tests.cpp
         Tests/zone_grid_tests.cpp
         Tests/zone_mapping_tests.cpp

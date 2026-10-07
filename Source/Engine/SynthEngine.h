@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Engine/ToneVoice.h"
+#include "Engine/VoiceManager.h"
 
 #include <atomic>
 #include <cstdint>
@@ -43,36 +43,42 @@ public:
 
     // Non-RT wiring; call while the audio callback is stopped (prepareToPlay).
     // A null source (either pointer) makes the per-block refresh a silent no-op
-    // on the audio thread. Until the patch publishing pipeline lands (M3-01)
-    // the processor wires the cache with no reclaimer, so no runtime is ever
-    // active and the running snapshot stays idle.
-    void setParamSnapshotSource (const ParamSnapshotCache* cache, const AssetReclaimer* reclaimer) noexcept;
+    // on the audio thread. The processor owns an AssetReclaimer and publishes
+    // the first PatchRuntime once the library has been mapped (M3-01).
+    void setParamSnapshotSource (const ParamSnapshotCache* cache, AssetReclaimer* reclaimer) noexcept;
 
     // RT-safe
     void process (const BusBuffers& buses, const juce::MidiBuffer& midi, int numSamples) noexcept;
 
-    // Diagnostics: temporary voice modulator cadence (one per rendered sample).
-    std::uint64_t modulationUpdateCount() const noexcept { return voice.modulationUpdateCount(); }
+    // Diagnostics: total voice modulator updates (one per rendered sample per
+    // sounding voice, M2-05 contract).
+    std::uint64_t modulationUpdateCount() const noexcept { return manager.modulationUpdateCount(); }
 
 private:
     // RT-safe
     void refreshActiveSnapshot() noexcept;
 
-    // RT-safe. Temporary single-voice path until VoiceManager lands (M3-01).
-    void startVoice (int note, float velocity) noexcept;
+    // RT-safe. Routes a Note-On to the voice manager using the active runtime.
+    void handleNoteOn (int note, int velocity, int channel) noexcept;
 
-    // RT-safe. Publishes the tracked controller state to the voice.
+    // RT-safe.
+    void handleNoteOff (int note, int channel) noexcept;
+
+    // RT-safe. Publishes the tracked controller state to the voice manager.
     void refreshModulationInput (int numSamples) noexcept;
+
+    // RT-safe. Reports the oldest in-use runtime id to the reclaimer (ADR-018).
+    void reportOldestAssetInUse() noexcept;
 
     // RT-safe
     void renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept;
 
     std::atomic<MidiEventSink*> midiSink { nullptr };
     std::atomic<const ParamSnapshotCache*> snapshotCache { nullptr };
-    std::atomic<const AssetReclaimer*> snapshotReclaimer { nullptr };
+    std::atomic<AssetReclaimer*> snapshotReclaimer { nullptr };
 
-    ToneVoice voice;
-    std::uint64_t voiceSeed = 1;
+    VoiceManager manager;
+    std::uint64_t noteSeed = 1;
     double sampleRate = 48000.0;
     std::uint64_t totalSamples = 0;
     std::uint64_t lastNoteOnSample = 0;
