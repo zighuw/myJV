@@ -380,8 +380,10 @@ void SamplerPanel::applyImport (ImportResult result, bool auditionAfterImport, i
     const auto pinRequested = ! pendingPinHash.empty() && result.entry.fileHash == pendingPinHash;
     const auto wantsSample = auditionAfterImport || pinRequested;
 
-    auto entries = library.getEntries();
-    const auto outcome = SamplerUi::mergeImportedEntry (entries, result.entry, wantsSample);
+    // Cache the decoded sample and merge the entry. The decoded sample is cached
+    // even for an already-indexed hash (M3-01 C1): the runtime rebuild resolves
+    // zones through findSample, so a duplicate import must still publish it.
+    const auto outcome = SamplerUi::publishImportedSample (library, result.entry, result.sample, wantsSample);
 
     if (outcome.skippedDuplicate)
     {
@@ -389,8 +391,6 @@ void SamplerPanel::applyImport (ImportResult result, bool auditionAfterImport, i
         return;
     }
 
-    library.addSample (result.entry.fileHash, result.sample);
-    library.setEntries (std::move (entries));
     saveIndex();
 
     if (pinRequested)

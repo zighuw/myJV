@@ -122,6 +122,7 @@ private:
     // WG / Tone Delay / end-fade state.
     bool delayStarted = true;
     bool startOnNoteOff = false;
+    bool holdReleaseApplied = false;   // HOLD: envelope release already issued (M3-01 D6)
     int delayRemaining = 0;
     int holdDelaySamples = 0;
     int endFadeRemaining = 0;

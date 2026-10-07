@@ -2,10 +2,14 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Engine/AssetReclaimer.h"
 #include "Engine/AuditionVoice.h"
 #include "Engine/SynthEngine.h"
 #include "Model/SampleLibrary.h"
 #include "Params/ParamSnapshotCache.h"
+
+#include <cstdint>
+#include <vector>
 
 class MyJVProcessor final : public juce::AudioProcessor,
                             private juce::Timer
@@ -110,11 +114,27 @@ public:
 private:
     void timerCallback() override;
 
+    // Message thread. Rebuilds a PatchRuntime from the current library (auto
+    // mapped zones + refreshed snapshot) and publishes it exactly once. Until
+    // the patch pipeline lands (M3-03 / M5-04a) this bootstrap is what makes an
+    // imported sample audible from host MIDI (closes M2-R4 C1).
+    void publishRuntime();
+
+    // Message thread. Signature of the library state the runtime depends on:
+    // the index entries AND which of them have a decoded sample cached (the
+    // auto-mapped zones resolve through findSample, so decoding a sample must
+    // also trigger a rebuild even when the index itself is unchanged).
+    static std::uint64_t libraryFingerprint (const SampleLibrary& library);
+
     juce::AudioProcessorValueTreeState apvts;
     ParamSnapshotCache paramSnapshotCache;
+    AssetReclaimer reclaimer;
     SynthEngine engine;
     SampleLibrary library;
     AuditionVoice audition;
+
+    bool initialRuntimePublished = false;
+    std::uint64_t lastLibraryFingerprint = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MyJVProcessor)
 };

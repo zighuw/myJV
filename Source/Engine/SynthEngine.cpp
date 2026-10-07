@@ -7,7 +7,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 // non-RT: prepare may allocate (architecture 5.3 - buffer allocation and state
-// reset happen here, off the audio thread). M2 wires the Tone voices in.
+// reset happen here, off the audio thread).
 void SynthEngine::prepare (double newSampleRate, int) noexcept
 {
     sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;
@@ -20,12 +20,12 @@ void SynthEngine::prepare (double newSampleRate, int) noexcept
 
     pitchBendValue = 0.0f;
     aftertouchValue = 0.0f;
-    voice.prepare (sampleRate);
+    manager.prepare (sampleRate);
 }
 
 void SynthEngine::releaseResources() noexcept
 {
-    voice.reset();
+    manager.reset();
 }
 
 void SynthEngine::setMidiEventSink (MidiEventSink* sink) noexcept
@@ -33,7 +33,7 @@ void SynthEngine::setMidiEventSink (MidiEventSink* sink) noexcept
     midiSink.store (sink, std::memory_order_release);
 }
 
-void SynthEngine::setParamSnapshotSource (const ParamSnapshotCache* cache, const AssetReclaimer* reclaimer) noexcept
+void SynthEngine::setParamSnapshotSource (const ParamSnapshotCache* cache, AssetReclaimer* reclaimer) noexcept
 {
     snapshotReclaimer.store (reclaimer, std::memory_order_release);
     snapshotCache.store (cache, std::memory_order_release);
@@ -54,8 +54,9 @@ void SynthEngine::refreshActiveSnapshot() noexcept
         cache->refresh (*active);
 }
 
-// RT-safe. Temporary single-voice note routing until VoiceManager (M3-01).
-void SynthEngine::startVoice (int note, float velocity) noexcept
+// RT-safe. Architecture 5.2: one note is split into one voice per enabled tone,
+// all capturing the currently active runtime (Patch Remain).
+void SynthEngine::handleNoteOn (int note, int velocity, int channel) noexcept
 {
     const auto* reclaimer = snapshotReclaimer.load (std::memory_order_acquire);
 
@@ -82,7 +83,13 @@ void SynthEngine::startVoice (int note, float velocity) noexcept
     lastNoteOnSample = totalSamples;
     hasLastNoteOn = true;
 
-    voice.startNote (active, 0, note, velocity, voiceSeed++, intervalScale);
+    manager.startNote (*active, note, velocity, channel, noteSeed++, intervalScale);
+}
+
+// RT-safe
+void SynthEngine::handleNoteOff (int note, int channel) noexcept
+{
+    manager.releaseNote (note, channel);
 }
 
 // RT-safe
@@ -110,7 +117,28 @@ void SynthEngine::refreshModulationInput (int numSamples) noexcept
         input.holdPeakMode[2] = common.ctrl3HoldPeak;
     }
 
-    voice.setModulationInput (input, numSamples);
+    manager.setModulationInput (input, numSamples);
+}
+
+// RT-safe. Architecture 3.3 rule 4 / ADR-018: report the smallest runtime id in
+// use, or the active runtime id when no note is live.
+void SynthEngine::reportOldestAssetInUse() noexcept
+{
+    auto* reclaimer = snapshotReclaimer.load (std::memory_order_acquire);
+
+    if (reclaimer == nullptr)
+        return;
+
+    auto oldest = manager.oldestRuntimeIdInUse();
+
+    if (oldest == 0)
+    {
+        const auto* active = reclaimer->activeForAudio();
+        oldest = active != nullptr ? active->id : 0;
+    }
+
+    if (oldest != 0)
+        reclaimer->updateOldestAssetInUse (oldest);
 }
 
 // RT-safe
@@ -118,7 +146,7 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
 {
     refreshActiveSnapshot();
     refreshModulationInput (numSamples);
-    voice.beginBlock();
+    manager.beginBlock();
 
     int currentSample = 0;
 
@@ -140,6 +168,7 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
         if (metadata.numBytes >= 2)
         {
             const auto status = metadata.data[0] & 0xf0;
+            const auto channel = metadata.data[0] & 0x0f;
             const auto data1 = metadata.data[1] & 0x7f;
 
             if (status == 0x90 && metadata.numBytes >= 3)
@@ -147,13 +176,13 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
                 const auto velocity = metadata.data[2] & 0x7f;
 
                 if (velocity > 0)
-                    startVoice (data1, (float) velocity / 127.0f);
+                    handleNoteOn (data1, velocity, channel);
                 else
-                    voice.release();
+                    handleNoteOff (data1, channel);
             }
             else if (status == 0x80 && metadata.numBytes >= 3)
             {
-                voice.release();
+                handleNoteOff (data1, channel);
             }
             else if (status == 0xB0 && metadata.numBytes >= 3)
             {
@@ -177,36 +206,12 @@ void SynthEngine::process (const BusBuffers& buses, const juce::MidiBuffer& midi
     if (currentSample < numSamples)
         renderSegment (buses, currentSample, numSamples - currentSample);
 
+    reportOldestAssetInUse();
     totalSamples += (std::uint64_t) std::max (0, numSamples);
 }
 
 // RT-safe
 void SynthEngine::renderSegment (const BusBuffers& buses, int startSample, int numSamples) noexcept
 {
-    for (int bus = 0; bus < kNumOutputBuses; ++bus)
-    {
-        if (buses.l[bus] != nullptr)
-            juce::FloatVectorOperations::clear (buses.l[bus] + startSample, numSamples);
-
-        if (buses.r[bus] != nullptr)
-            juce::FloatVectorOperations::clear (buses.r[bus] + startSample, numSamples);
-    }
-
-    if (voice.finished())
-        return;
-
-    for (int i = 0; i < numSamples; ++i)
-    {
-        BusBuffers cursor;
-
-        for (int bus = 0; bus < kNumOutputBuses; ++bus)
-        {
-            cursor.l[bus] = buses.l[bus] != nullptr ? buses.l[bus] + startSample + i : nullptr;
-            cursor.r[bus] = buses.r[bus] != nullptr ? buses.r[bus] + startSample + i : nullptr;
-        }
-
-        voice.updateModulators();
-        const auto sample = voice.processTVA (voice.processTVF (voice.processWG()));
-        voice.addToBus (sample, cursor);
-    }
+    manager.render (buses, startSample, numSamples);
 }

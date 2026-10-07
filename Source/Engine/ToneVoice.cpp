@@ -134,6 +134,7 @@ void ToneVoice::reset() noexcept
     activeGain = 0.0f;
     delayStarted = true;
     startOnNoteOff = false;
+    holdReleaseApplied = false;
     delayRemaining = 0;
     holdDelaySamples = 0;
     endFadeRemaining = 0;
@@ -196,6 +197,7 @@ void ToneVoice::startNote (const PatchRuntime* newRuntime, int newToneIndex, int
     fxm.reset();
     lastWgSample = 0.0f;
     ending = false;
+    holdReleaseApplied = false;
     endFadeRemaining = 0;
     endFadeTotal = 0;
 
@@ -490,6 +492,19 @@ void ToneVoice::updateModulators() noexcept
                             0.0f, 2.0f);
 
     activeGain = gain;
+
+    // M3-01 (D6 / R4-M1): a HOLD-delay note sounds once its countdown ends and
+    // then releases its envelopes (the exact tail shape is refined in M4-06).
+    // Repeated note-offs never reach this voice: VoiceManager forwards the first
+    // release only, so the countdown can no longer be cancelled from here.
+    if (startOnNoteOff && ! holdReleaseApplied)
+    {
+        holdReleaseApplied = true;
+        aEnv.release();
+        pEnv.release();
+        fEnv.release();
+        voiceState = State::Releasing;
+    }
 }
 
 // RT-safe
